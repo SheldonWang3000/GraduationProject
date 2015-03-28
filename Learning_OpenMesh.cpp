@@ -13,9 +13,21 @@ struct Pair
 	int value;
 };
 
+struct EdgeLink
+{
+	Pair pair;
+	EdgeLink *next;
+};
+
+struct ListLink
+{
+	EdgeLink *head, *last;
+};
+
 struct MyPoint
 {
 	MyMesh::VertexHandle point;
+	CvScalar color;	
 	bool isEdge;
 };
 void output(MyMesh mesh)
@@ -176,6 +188,13 @@ int main()
 	{
 		point_data[i] = new MyPoint[result->width];
 	}
+	for (int i = 0; i < image->height; ++ i)
+	{
+		for (int j = 0; j < image->width; ++ j)
+		{
+			point_data[i][j].color = cvGet2D(image, i, j);
+		}
+	}
 	get_net(mesh, result, point_data);
 
 	cout << "net_complete" << endl;
@@ -188,26 +207,28 @@ int main()
 		int from_y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
 		int to_x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
 		int to_y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
-
+		int difference = 0;
+		Pair newPair;
+		newPair.edge = i.handle();
 		if ((point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge) ||
 			(!(point_data[from_x][from_y].isEdge || point_data[to_x][to_y].isEdge)))
 		{
-			CvScalar from_color = cvGet2D(image, from_x, from_y);
-			CvScalar to_color = cvGet2D(image, to_x, to_y);
-			int difference = 0;
+			CvScalar from_color = point_data[from_x][from_y].color;
+			CvScalar to_color = point_data[to_x][to_y].color;
 			for (int j = 0; j < 3; ++ j)
 			{
 				int temp = abs(from_color.val[j] - to_color.val[j]);
 				difference += temp;
 			}	
-			Pair newPair;
-			newPair.edge = i.handle();
-			newPair.value = difference;
-			point_pair_list.push_back(newPair);
 		}
+		newPair.value = difference;
+		point_pair_list.push_back(newPair);
 		
 	}
 	cout << "list_complete" << endl;
+
+
+
 	//计算顶点个数，用作停止条件，当剩余顶点数为原本的30%的时候停止
 	double num_vertices = 0;
 	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++ i)
@@ -216,6 +237,74 @@ int main()
 	}
 	cout << num_vertices << endl;
 	double num_all_vertices = num_vertices;
+
+	ListLink temp_list_link;
+	temp_list_link.head = nullptr;
+	temp_list_link.last = nullptr;
+	vector<ListLink> vertex_list(num_all_vertices, temp_list_link);
+	EdgeLink *temp_link;
+	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++ i, ++ i)
+	{
+		int vertex_idx = mesh.to_vertex_handle(i.handle()).idx();
+		if (vertex_list[vertex_idx].head == nullptr) 
+		{
+			vertex_list[vertex_idx].head = new EdgeLink;
+			vertex_list[vertex_idx].head->pair = point_pair_list[i.handle().idx() / 2];
+			vertex_list[vertex_idx].head->next = nullptr;
+
+			vertex_list[vertex_idx].last = vertex_list[vertex_idx].head;
+		}
+		else
+		{
+			temp_link = new EdgeLink;
+			temp_link->pair = point_pair_list[i.handle().idx() / 2];
+			temp_link->next = nullptr;
+			vertex_list[vertex_idx].last->next = temp_link;
+			vertex_list[vertex_idx].last = vertex_list[vertex_idx].last->next;
+		}
+		
+
+
+		vertex_idx = mesh.from_vertex_handle(i.handle()).idx();
+		if (vertex_list[vertex_idx].head == nullptr) 
+		{
+			vertex_list[vertex_idx].head = new EdgeLink;
+			vertex_list[vertex_idx].head->pair = point_pair_list[i.handle().idx() / 2];
+			vertex_list[vertex_idx].head->next = nullptr;
+
+			vertex_list[vertex_idx].last = vertex_list[vertex_idx].head;
+		}
+		else
+		{
+			temp_link = new EdgeLink;
+			temp_link->pair = point_pair_list[i.handle().idx() / 2];
+			temp_link->next = nullptr;
+			vertex_list[vertex_idx].last->next = temp_link;
+			vertex_list[vertex_idx].last = vertex_list[vertex_idx].last->next;
+		}
+
+	}
+	cout << "link_complete" << endl;
+	vector<Pair> temp_list;
+	for (auto i = point_pair_list.begin(); i != point_pair_list.end(); ++ i)
+	{
+		OpenMesh::HalfedgeHandle temp_edge = i->edge;
+		int from_x = mesh.point(mesh.from_vertex_handle(temp_edge)).data()[0];
+		int from_y = mesh.point(mesh.from_vertex_handle(temp_edge)).data()[1];
+		int to_x = mesh.point(mesh.to_vertex_handle(temp_edge)).data()[0];
+		int to_y = mesh.point(mesh.to_vertex_handle(temp_edge)).data()[1];
+
+		if ((point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge) ||
+			(!(point_data[from_x][from_y].isEdge || point_data[to_x][to_y].isEdge)))
+		{
+			Pair temp_pair;
+			temp_pair.value = i->value;
+			temp_pair.edge = i->edge;
+			temp_list.push_back(temp_pair);
+		}
+	}
+	point_pair_list = temp_list;
+	cout << "delete_edge_complete" << endl;
 	//建造最小堆
 	make_heap(point_pair_list.begin(), point_pair_list.end(), compare);
 	mesh.request_edge_status();
@@ -234,6 +323,9 @@ int main()
 		auto info = OpenMesh::Decimater::CollapseInfoT<MyMesh>::CollapseInfoT(mesh, half);
 		if (mesh.is_collapse_ok(half))
 		{
+			EdgeLink *remove_head = vertex_list[info.v0.idx()].head;
+			EdgeLink *remain_head = vertex_list[info.v1.idx()].head;
+			
 			mesh.collapse(half);
 			-- num_vertices;
 			//调整合并后点的位置
@@ -241,6 +333,8 @@ int main()
 			int remove_y = info.p0.data()[1];
 			int remain_x = info.p1.data()[0];
 			int remain_y = info.p1.data()[1];
+			CvScalar remove_color = point_data[remove_x][remove_y].color;
+			CvScalar remain_color = point_data[remain_x][remain_y].color;
 			//cout << remove_x << ' ' << remove_y << endl;
 			//cout << remain_x << ' ' << remain_y << endl;
 			if ((remove_x == 0 && remove_y == 0) ||
@@ -284,9 +378,62 @@ int main()
 					mesh.point(info.v1).data()[1] = (int) ((info.p1.data()[1] + info.p0.data()[1]) / 2);
 				}
 			}
+			//调整点的颜色
+			int x = mesh.point(info.v1).data()[0];
+			int y = mesh.point(info.v1).data()[1];
+			for (int k = 0; k < 3; ++ k)
+			{
+				point_data[x][y].color.val[k] = (remove_color.val[k] + remain_color.val[k]) / 2;
+			}
 
+			//重新计算代价
+			do 
+			{
+				Pair temp_pair = remove_head->pair;
+				remove_head = remove_head->next;
+				int from_x = mesh.point(mesh.from_vertex_handle(temp_pair.edge)).data()[0];
+				int from_y = mesh.point(mesh.from_vertex_handle(temp_pair.edge)).data()[1]; 
+				int to_x = mesh.point(mesh.to_vertex_handle(temp_pair.edge)).data()[0];
+				int to_y = mesh.point(mesh.to_vertex_handle(temp_pair.edge)).data()[1];
+				if (mesh.from_vertex_handle(temp_pair.edge).idx() != mesh.to_vertex_handle(temp_pair.edge).idx())
+				{
+					int difference = 0;
+					CvScalar from_color = point_data[from_x][from_y].color;
+					CvScalar to_color = point_data[to_x][to_y].color;
+					for (int j = 0; j < 3; ++ j)
+					{
+						int temp = abs(from_color.val[j] - to_color.val[j]);
+						difference += temp;
+					}	
+					temp_pair.value = difference;
+				}
+			} while (remove_head->next);
+			
+			do 
+			{
+				Pair temp_pair = remain_head->pair;
+				remain_head = remain_head->next;
+				int from_x = mesh.point(mesh.from_vertex_handle(temp_pair.edge)).data()[0];
+				int from_y = mesh.point(mesh.from_vertex_handle(temp_pair.edge)).data()[1]; 
+				int to_x = mesh.point(mesh.to_vertex_handle(temp_pair.edge)).data()[0];
+				int to_y = mesh.point(mesh.to_vertex_handle(temp_pair.edge)).data()[1];
+				if (mesh.from_vertex_handle(temp_pair.edge).idx() != mesh.to_vertex_handle(temp_pair.edge).idx())
+				{
+					int difference = 0;
+					CvScalar from_color = point_data[from_x][from_y].color;
+					CvScalar to_color = point_data[to_x][to_y].color;
+					for (int j = 0; j < 3; ++ j)
+					{
+						int temp = abs(from_color.val[j] - to_color.val[j]);
+						difference += temp;
+					}	
+					temp_pair.value = difference;
+				}
+			} while (remain_head->next);
+			make_heap(point_pair_list.begin(), point_pair_list.end(), compare);
 			//cout << mesh.point(info.v1).data()[0] << ' ' << mesh.point(info.v1).data()[1] << endl;
 		}
+		//cout << num_vertices / num_all_vertices << endl;
 	
 
 	}
