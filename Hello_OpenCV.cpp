@@ -6,7 +6,7 @@ using namespace std;
 
 int main()
 {
-	const char *pstrImageName = "opencv.jpg";
+	const char *pstrImageName = "D:/lena.jpg";
 	const char *pstrWindowsTitle = "OpenCV第一个程序";
 
 	//从文件中读取图像

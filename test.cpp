@@ -3,11 +3,17 @@
 #include <vector>
 #include <algorithm>
 #include <functional>
+#include <time.h>
 using namespace std;
 struct pp
 {
 	int x;
+	friend bool operator==(const pp &l, const pp &r)
+	{
+		return l.x == r.x;
+	}
 };
+
 struct link
 {
 	int a;
@@ -23,7 +29,7 @@ void PrintfVectorInt(vector<pp> &vet)
 bool compare(pp a, pp b)
 {
 	//a < b 是最大堆, a > b 是最小堆
-	return a.x > b.x;
+	return a.x < b.x;
 }
 int main()
 {
@@ -113,11 +119,46 @@ int main()
 	//	head = head->next;
 	//}
 	//cout << head->a << endl;
-	vector<int> list;
-	for (int i = 0; i < 10; ++ i)
+	vector<pp> list;
+	for (int i = 0; i < 10000; ++i)
 	{
-		list.push_back(i);
+		pp temp;
+		temp.x = i;
+		list.push_back(temp);
 	}
+	make_heap(list.begin(), list.end(), compare);
+	clock_t start = clock();
+	for (int i = 10000; i < 12000; ++i)
+	{
+		pp temp;
+		temp.x = i;
+		list.push_back(temp);
+	}
+	make_heap(list.begin(), list.end(), compare);
+	clock_t end = clock();
+	cout << list[0].x << endl;
+	cout << (double)(end - start) / CLOCKS_PER_SEC << endl;
+
+	list.clear();
+	for (int i = 0; i < 10000; ++i)
+	{
+		pp temp;
+		temp.x = i;
+		list.push_back(temp);
+	}
+	make_heap(list.begin(), list.end(), compare);
+	
+	start = clock();
+	for (int i = 10000; i < 12000; ++i)
+	{
+		pp temp;
+		temp.x = i;
+		list.push_back(temp);
+		push_heap(list.begin(), list.end(), compare);
+	}
+	end = clock();
+	cout << list[0].x << endl;
+	cout << (double)(end - start) / CLOCKS_PER_SEC << endl;
 	system("pause");
 	return 0;
 }
