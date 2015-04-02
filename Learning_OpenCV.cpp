@@ -152,7 +152,10 @@ int main()
 	image = cvLoadImage("D:/lena.jpg", -1);
 	OpencvHelper helper;
 	//IplImage *result = cvCreateImage(cvGetSize(image), image->depth, 1);
-	//helper.pic_edge(image, result);
+	//helper.get_pic_edge(image, result);
+	//rgb_to_file(result);
+	//cvNamedWindow("edge", CV_WINDOW_AUTOSIZE);
+	//cvShowImage("edge", result);
 	//BGR2Grey(image);
 
 	//rgb_to_file(result);
@@ -163,18 +166,37 @@ int main()
 	//2,40,3
 	//rgb_to_file(area);
 
-	cv::RNG rng = cv::theRNG();
-	cv::Mat tempMat(area, 0);
-	cv::Mat mask(tempMat.rows + 2, tempMat.cols + 2, CV_8UC1, cv::Scalar::all(0));
-	auto tt = cv::Scalar::all(2);
-	for(int i = 0; i < tempMat.rows; ++ i)    //opencv图像等矩阵也是基于0索引的
-		for(int j = 0; j < tempMat.cols; ++ j)
-			if(mask.at<uchar>(i + 1, j + 1) == 0)
-			{
-				cv::Scalar newcolor(rng(256), rng(256), rng(256));
-				floodFill(tempMat, mask, cv::Point(j, i), newcolor, 0, tt, tt);
-			}
-	
+	// 转为灰度图  
+	IplImage *pGrayImage = cvCreateImage(cvGetSize(area), IPL_DEPTH_8U, 1);
+	cvCvtColor(area, pGrayImage, CV_BGR2GRAY);
+	// 转为二值图  
+	IplImage *pBinaryImage = cvCreateImage(cvGetSize(pGrayImage), IPL_DEPTH_8U, 1);
+	cvThreshold(pGrayImage, pBinaryImage, 130, 255, CV_THRESH_BINARY);
+
+	// 检索轮廓并返回检测到的轮廓的个数  
+	CvMemStorage *pcvMStorage = cvCreateMemStorage();
+	CvSeq *pcvSeq = NULL;
+	cvFindContours(pBinaryImage, pcvMStorage, &pcvSeq, sizeof(CvContour), CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE, cvPoint(0, 0));
+
+	// 画轮廓图  
+	IplImage *pOutlineImage = cvCreateImage(cvGetSize(pBinaryImage), IPL_DEPTH_8U, 3);
+	int nLevels = 5;
+	// 填充成白色  
+	cvRectangle(pOutlineImage, cvPoint(0, 0), cvPoint(pOutlineImage->width, pOutlineImage->height), CV_RGB(255, 255, 255), CV_FILLED);
+	cvDrawContours(pOutlineImage, pcvSeq, CV_RGB(0, 0, 0), CV_RGB(0, 0, 0), nLevels, 2);
+
+	//cv::RNG rng = cv::theRNG();
+	//cv::Mat tempMat(pOutlineImage, 0);
+	//cv::Mat mask(tempMat.rows + 2, tempMat.cols + 2, CV_8UC1, cv::Scalar::all(0));
+	//auto tt = cv::Scalar::all(2);
+	//for(int i = 0; i < tempMat.rows; ++ i)    //opencv图像等矩阵也是基于0索引的
+	//	for (int j = 0; j < tempMat.cols; ++j)
+	//		if(mask.at<uchar>(i + 1, j + 1) == 0)
+	//		{
+	//			cv::Scalar newcolor(rng(256), rng(256), rng(256));
+	//			floodFill(tempMat, mask, cv::Point(j, i), newcolor, 0, tt, tt);
+	//		}
+	//
 	
 
 	uchar *data = (uchar*) image->imageData;
@@ -186,7 +208,7 @@ int main()
 	{
 		for (int j = 0; j != area->width; ++ j)
 		{	
-			CvScalar color = cvGet2D(area, i, j);
+			CvScalar color = cvGet2D(pOutlineImage, i, j);
 			//temp = data[i * step + j];	
 			int sum = 0;
 			sum = color.val[0];
@@ -212,15 +234,11 @@ int main()
 	
 	cout << num << endl;
 	
-	//fstream out("D:/color.txt");
-	//for (auto i = color_set.begin(); i != color_set.end(); ++ i)
-	//{
-	//	out << i->first << ' ' << i->second << endl;
-	//}
-	//out.close();
 
 	cvNamedWindow("area", CV_WINDOW_AUTOSIZE);
 	cvShowImage("area", area);
+	cvNamedWindow("er", CV_WINDOW_AUTOSIZE);
+	cvShowImage("er", pOutlineImage);
 	cvWaitKey(0);
 	cvDestroyWindow("area");
 	cvDestroyWindow("result");

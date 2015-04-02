@@ -1,4 +1,5 @@
 #include "openmesh_helper.h"
+#include <iostream>
 using namespace std;
 
 //************************************
@@ -35,25 +36,105 @@ void OpenmeshHelper::InitPointData()
 	{
 		point_data[i] = new MyPoint[image->width];
 	}
-
-	IplImage *result = cvCreateImage(cvGetSize(image), image->depth, 1);
-	OpencvHelper helper;
-	helper.pic_edge(image, result);
-	uchar *data = (uchar*)result->imageData;
-	int step = result->widthStep / sizeof(uchar);
-
-	for (int i = 0; i < image->height; ++ i)
+	for (int i = 0; i != image->height; ++i)
 	{
-		for (int j = 0; j < image->width; ++ j)
+		for (int j = 0; j != image->width; ++j)
 		{
-			point_data[i][j].color = cvGet2D(image, i, j);
-			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0)); 
-			if (data[i * step + j] == 255)
-				point_data[i][j].isEdge = true;
-			else point_data[i][j].isEdge = false;
+			point_data[i][j].point_type = None;
 		}
 	}
-	cvReleaseImage(&result);
+
+	OpencvHelper helper;
+
+	IplImage *contours = cvCreateImage(cvGetSize(image), image->depth, 1);
+	helper.get_pic_contours(image, contours);
+	uchar *data = (uchar *)contours->imageData;
+	int step = contours->widthStep / sizeof(uchar);
+	for (int i = 0; i < contours->height; ++i)
+	{
+		for (int j = 0; j < contours->width; ++j)
+		{
+			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
+			if (data[i * step + j] == 0)
+			{
+				point_data[i][j].isEdge = true;
+			}
+		}
+	}
+	ConnectMesh(false);
+	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
+	{
+		int from_x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
+		int from_y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
+		int to_x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
+		int to_y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
+		if (point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge)
+		{
+			tear_list.push_back(i.handle());
+		}
+	}
+	mesh.clear();
+
+	cvReleaseImage(&contours);
+	IplImage *area = cvCreateImage(cvGetSize(image), image->depth, 3);
+	helper.get_pic_area(image, area);
+	data = (uchar *)area->imageData;
+	step = area->widthStep / sizeof(uchar);
+	map<int, int> color_map;
+	int color_idx = 0;
+	for (int i = 0; i < area->height; ++ i)
+	{
+		for (int j = 0; j < area->width; ++ j)
+		{
+			int color = 0;
+			CvScalar temp_color = cvGet2D(area, i, j);
+			point_data[i][j].color = temp_color;
+			
+			
+			for (int k = 0; k < 3; ++k)
+			{
+				color += temp_color.val[k];
+				color *= 1000;
+			}
+			if (color_map.count(color) == 0)
+			{
+				color_map[color] = color_idx++;
+			}
+			point_data[i][j].area_idx = color_map[color];
+			if (point_data[i][j].isEdge) point_data[i][j].area_idx = -1;
+		}
+	}
+	cvReleaseImage(&area);
+	IplImage *edge = cvCreateImage(cvGetSize(image), image->depth, 1);
+	
+	helper.get_pic_edge(image, edge);
+	data = (uchar*)edge->imageData;
+	step = edge->widthStep / sizeof(uchar);
+	for (int i = 0; i < image->height; ++i)
+	{
+		for (int j = 0; j < image->width; ++j)
+		{
+			if (data[i * step + j] == 255)
+				point_data[i][j].isEdge = true;
+			else
+				point_data[i][j].isEdge = false;
+		}
+	}
+	ConnectMesh(false);
+	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
+	{
+		int from_x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
+		int from_y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
+		int to_x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
+		int to_y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
+		if (point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge)
+		{
+			crease_list.push_back(i.handle());
+		}
+	}
+	mesh.clear();
+	cvReleaseImage(&edge);
+
 	cout << "Init point data complete" << endl;
 }
 //************************************
@@ -64,7 +145,7 @@ void OpenmeshHelper::InitPointData()
 // Qualifier:
 // 连接网格，遵循之前的规则将点连接成网格
 //************************************
-void OpenmeshHelper::ConnectMesh()
+void OpenmeshHelper::ConnectMesh(bool isContour = true)
 {
 	vector<MyMesh::VertexHandle> list;
 
@@ -87,12 +168,15 @@ void OpenmeshHelper::ConnectMesh()
 			switch (num)
 			{
 			case 0:
-				list.clear();
-				list.push_back(point[0].point);
-				list.push_back(point[1].point);
-				list.push_back(point[2].point);
-				list.push_back(point[3].point);
-				mesh.add_face(list);
+				if (!isContour)
+				{
+					list.clear();
+					list.push_back(point[0].point);
+					list.push_back(point[1].point);
+					list.push_back(point[2].point);
+					list.push_back(point[3].point);
+					mesh.add_face(list);
+				}
 				break;
 			case 1:
 				list.clear();
@@ -478,7 +562,7 @@ void OpenmeshHelper::CollapseEdge(MyMesh::HalfedgeHandle half)
 void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 {
 	InitPointData();
-	ConnectMesh();
+	ConnectMesh(this->image);
 	CountVertices();
 
 	InitPairList();

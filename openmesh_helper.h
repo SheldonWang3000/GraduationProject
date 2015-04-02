@@ -11,6 +11,10 @@ typedef OpenMesh::PolyMesh_ArrayKernelT<> MyMesh;
 class OpenmeshHelper
 {
 private:
+	enum PointType
+	{
+		None, Crease, Tear, Corner, Smooth
+	};
 	struct Pair
 	{
 		OpenMesh::HalfedgeHandle edge;
@@ -33,11 +37,15 @@ private:
 	{
 		MyMesh::VertexHandle point;
 		CvScalar color;
+		int area_idx;
+		PointType point_type;
 		bool isEdge;
 	};
 	static bool Compare(Pair a, Pair b);
 	vector<Pair> point_pair_list;
 	vector<ListLink> vertex_list;
+	vector<MyMesh::HalfedgeHandle> tear_list;
+	vector<MyMesh::HalfedgeHandle> crease_list;
 	MyMesh mesh;
 	IplImage *image;
 	MyPoint **point_data;
@@ -45,7 +53,7 @@ private:
 	double num_all_vertices;
 
 	void InitPointData();
-	void ConnectMesh();
+	void ConnectMesh(bool isContour = true);
 	void CountVertices();
 	void InitPairList();
 	void LinkVertices();
