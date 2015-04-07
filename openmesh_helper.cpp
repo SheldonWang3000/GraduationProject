@@ -32,11 +32,12 @@ OpenmeshHelper::~OpenmeshHelper()
 void OpenmeshHelper::InitPointData()
 {
 	point_data = new MyPoint*[image->height];
-	for (int i = 0; i != image->height; ++ i)
+	for (int i = 0; i != image->height; ++i)
 	{
 		point_data[i] = new MyPoint[image->width];
 	}
 
+	
 
 	OpencvHelper helper;
 
@@ -54,6 +55,10 @@ void OpenmeshHelper::InitPointData()
 			{
 				point_data[i][j].isEdge = true;
 			}
+			else
+			{
+				point_data[i][j].isEdge = false;
+			}
 		}
 	}
 	ConnectMesh(false);
@@ -70,6 +75,7 @@ void OpenmeshHelper::InitPointData()
 		}
 	}
 	mesh.clear();
+	mesh.garbage_collection();
 	for (int i = 0; i < image->height; ++i)
 	{
 		for (int j = 0; j < image->width; ++j)
@@ -91,8 +97,6 @@ void OpenmeshHelper::InitPointData()
 		{
 			int color = 0;
 			CvScalar temp_color = cvGet2D(area, i, j);
-			point_data[i][j].color = temp_color;
-			
 			
 			for (int k = 0; k < 3; ++k)
 			{
@@ -136,10 +140,13 @@ void OpenmeshHelper::InitPointData()
 		}
 	}
 	mesh.clear();
+	mesh.garbage_collection();
+
 	for (int i = 0; i < image->height; ++i)
 	{
 		for (int j = 0; j < image->width; ++j)
 		{
+			point_data[i][j].color = cvGet2D(image, i, j);
 			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
 		}
 	}
@@ -613,7 +620,6 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 {
 	InitPointData();
 	ConnectMesh(true);
-	Output("D:/out.off");
 	CountVertices();
 
 	InitPairList();
@@ -668,7 +674,7 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 
 bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
 {
-	return mesh.is_collapse_ok(half);
+	//return mesh.is_collapse_ok(half);
 
 	if (!mesh.is_collapse_ok(half)) return false;
 	auto info = OpenMesh::Decimater::CollapseInfoT<MyMesh>::CollapseInfoT(mesh, half); 
@@ -701,8 +707,8 @@ bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
 		auto normals = mesh.calc_face_normal(i.handle());
 		if (normals.data()[2] < 0)
 		{
-			mesh.point(info.v1).data()[0] = x0;
-			mesh.point(info.v1).data()[1] = y0;
+			mesh.point(info.v1).data()[0] = x1;
+			mesh.point(info.v1).data()[1] = y1;
 			return false;
 		}
 	}
