@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <functional>
 #include <time.h>
-#include "point_data.h"
 using namespace std;
 struct pp
 {

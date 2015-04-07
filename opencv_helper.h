@@ -5,9 +5,7 @@ using namespace std;
 class OpencvHelper
 {
 public:
-	void get_pic_edge(IplImage *image, IplImage *result); 
-	void get_pic_area(IplImage *image, IplImage *result);
-	void get_pic_contours(IplImage *image, IplImage *result);
+	void pic_edge(IplImage *image, IplImage *result); 
 private:
 	double get_T(IplImage *image);
 	double get_delta(vector<double> list, double avg);

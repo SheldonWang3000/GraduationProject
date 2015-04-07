@@ -1,5 +1,4 @@
 #include "openmesh_helper.h"
-#include <iostream>
 using namespace std;
 
 //************************************
@@ -37,113 +36,24 @@ void OpenmeshHelper::InitPointData()
 		point_data[i] = new MyPoint[image->width];
 	}
 
-
+	IplImage *result = cvCreateImage(cvGetSize(image), image->depth, 1);
 	OpencvHelper helper;
+	helper.pic_edge(image, result);
+	uchar *data = (uchar*)result->imageData;
+	int step = result->widthStep / sizeof(uchar);
 
-	IplImage *contours = cvCreateImage(cvGetSize(image), image->depth, 1);
-	helper.get_pic_contours(image, contours);
-	uchar *data = (uchar *)contours->imageData;
-	int step = contours->widthStep / sizeof(uchar);
-	for (int i = 0; i < contours->height; ++i)
+	for (int i = 0; i < image->height; ++ i)
 	{
-		for (int j = 0; j < contours->width; ++j)
+		for (int j = 0; j < image->width; ++ j)
 		{
-			point_data[i][j].point_type = None;
-			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
-			if (data[i * step + j] == 0)
-			{
-				point_data[i][j].isEdge = true;
-			}
-		}
-	}
-	ConnectMesh(false);
-
-	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
-	{
-		int from_x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
-		int from_y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
-		int to_x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
-		int to_y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
-		if (point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge)
-		{
-			tear_list.push_back(i.handle());
-		}
-	}
-	mesh.clear();
-	for (int i = 0; i < image->height; ++i)
-	{
-		for (int j = 0; j < image->width; ++j)
-		{
-			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
-		}
-	}
-
-	cvReleaseImage(&contours);
-	IplImage *area = cvCreateImage(cvGetSize(image), image->depth, 3);
-	helper.get_pic_area(image, area);
-	data = (uchar *)area->imageData;
-	step = area->widthStep / sizeof(uchar);
-	map<int, int> color_map;
-	int color_idx = 0;
-	for (int i = 0; i < area->height; ++ i)
-	{
-		for (int j = 0; j < area->width; ++ j)
-		{
-			int color = 0;
-			CvScalar temp_color = cvGet2D(area, i, j);
-			point_data[i][j].color = temp_color;
-			
-			
-			for (int k = 0; k < 3; ++k)
-			{
-				color += temp_color.val[k];
-				color *= 1000;
-			}
-			if (color_map.count(color) == 0)
-			{
-				color_map[color] = color_idx++;
-			}
-			point_data[i][j].area_idx = color_map[color];
-			if (point_data[i][j].isEdge) point_data[i][j].area_idx = -1;
-		}
-	}
-	cvReleaseImage(&area);
-	IplImage *edge = cvCreateImage(cvGetSize(image), image->depth, 1);
-	
-	helper.get_pic_edge(image, edge);
-	data = (uchar*)edge->imageData;
-	step = edge->widthStep / sizeof(uchar);
-	for (int i = 0; i < image->height; ++i)
-	{
-		for (int j = 0; j < image->width; ++j)
-		{
+			point_data[i][j].color = cvGet2D(image, i, j);
+			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0)); 
 			if (data[i * step + j] == 255)
 				point_data[i][j].isEdge = true;
-			else
-				point_data[i][j].isEdge = false;
+			else point_data[i][j].isEdge = false;
 		}
 	}
-	ConnectMesh(false);
-	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
-	{
-		int from_x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
-		int from_y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
-		int to_x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
-		int to_y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
-		if (point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge)
-		{
-			crease_list.push_back(i.handle());
-		}
-	}
-	mesh.clear();
-	for (int i = 0; i < image->height; ++i)
-	{
-		for (int j = 0; j < image->width; ++j)
-		{
-			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
-		}
-	}
-	cvReleaseImage(&edge);
+	cvReleaseImage(&result);
 	cout << "Init point data complete" << endl;
 }
 //************************************
@@ -154,7 +64,7 @@ void OpenmeshHelper::InitPointData()
 // Qualifier:
 // 连接网格，遵循之前的规则将点连接成网格
 //************************************
-void OpenmeshHelper::ConnectMesh(bool isContour)
+void OpenmeshHelper::ConnectMesh()
 {
 	vector<MyMesh::VertexHandle> list;
 
@@ -177,15 +87,12 @@ void OpenmeshHelper::ConnectMesh(bool isContour)
 			switch (num)
 			{
 			case 0:
-				if (isContour)
-				{
-					list.clear();
-					list.push_back(point[0].point);
-					list.push_back(point[1].point);
-					list.push_back(point[2].point);
-					list.push_back(point[3].point);
-					mesh.add_face(list);
-				}
+				list.clear();
+				list.push_back(point[0].point);
+				list.push_back(point[1].point);
+				list.push_back(point[2].point);
+				list.push_back(point[3].point);
+				mesh.add_face(list);
 				break;
 			case 1:
 				list.clear();
@@ -398,48 +305,6 @@ void OpenmeshHelper::DeletePairList()
 	point_pair_list = temp_list;
 	cout << "Delete pair list complete" << endl;
 }
-void OpenmeshHelper::SortVertices()
-{
-	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
-	{
-		int tear = 0;
-		int crease = 0;
-		for (auto it = mesh.voh_iter(i.handle()); it; ++it)
-		{
-			auto position = find(tear_list.begin(), tear_list.end(), it.handle());
-			if (position != tear_list.end())
-			{
-				++tear;
-				continue;
-			}
-
-			position = find(crease_list.begin(), crease_list.end(), it.handle());
-			if (position != crease_list.end())
-			{
-				++crease;
-			}
-		}
-		int x = mesh.point(i.handle()).data()[0];
-		int y = mesh.point(i.handle()).data()[1];
-		//TODO 点分类存在问题
-		if (tear == 0 && crease == 0)
-		{
-			point_data[x][y].point_type = Smooth;
-			continue;
-		}
-		if (tear == 2)
-		{
-			point_data[x][y].point_type = Tear;
-			continue;
-		}
-		if (crease == 2)
-		{
-			point_data[x][y].point_type = Crease;
-			continue;
-		}
-		point_data[x][y].point_type = Corner;
-	}
-}
 //************************************
 // Method:    Output
 // FullName:  OpenmeshHelper::Output
@@ -548,6 +413,7 @@ void OpenmeshHelper::CollapseEdge(MyMesh::HalfedgeHandle half)
 
 	mesh.collapse(half);
 	-- num_vertices;
+	
 	//调整合并后点的位置
 	RegulatePosition(info);
 	//调整点的颜色
@@ -612,8 +478,7 @@ void OpenmeshHelper::CollapseEdge(MyMesh::HalfedgeHandle half)
 void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 {
 	InitPointData();
-	ConnectMesh(true);
-	Output("D:/out.off");
+	ConnectMesh();
 	CountVertices();
 
 	InitPairList();
@@ -628,19 +493,20 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 	mesh.request_face_status();
 
 	while (num_vertices / num_all_vertices > rate)
-	//while (point_pair_list.size() > 0)
+		//while (point_pair_list.size() > 0)
 	{
 		pop_heap(point_pair_list.begin(), point_pair_list.end(), Compare);
 		auto half = point_pair_list[point_pair_list.size() - 1].edge;
 		point_pair_list.pop_back();
-		if (IsCollapseOK(half))
+
+		if (mesh.is_collapse_ok(half))
 		{
 			CollapseEdge(half);
 		}
 		else
 		{
 			half = mesh.opposite_halfedge_handle(half);
-			if (IsCollapseOK(half))
+			if (mesh.is_collapse_ok(half))
 			{
 				cout << "opposite" << endl;
 				CollapseEdge(half);
@@ -664,50 +530,4 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 	mesh.release_halfedge_status();
 	mesh.release_face_status();
 	cout << "Reduce Vertrices complete" << endl;
-}
-
-bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
-{
-	return mesh.is_collapse_ok(half);
-
-	if (!mesh.is_collapse_ok(half)) return false;
-	auto info = OpenMesh::Decimater::CollapseInfoT<MyMesh>::CollapseInfoT(mesh, half); 
-	int x0 = mesh.point(info.v0).data()[0];
-	int y0 = mesh.point(info.v0).data()[1];
-	int x1 = mesh.point(info.v1).data()[0];
-	int y1 = mesh.point(info.v1).data()[1];
-
-	mesh.point(info.v0).data()[0] = (x0 + x1) / 2;
-	mesh.point(info.v0).data()[1] = (y0 + y1) / 2;
-	
-	for (auto i = mesh.vf_begin(info.v0); i != mesh.vf_end(info.v0); ++i)
-	{
-		auto normals = mesh.calc_face_normal(i.handle());
-		if (normals.data()[2] < 0)
-		{
-			mesh.point(info.v0).data()[0] = x0;
-			mesh.point(info.v0).data()[1] = y0;
-			return false;
-		}
-	}
-	mesh.point(info.v0).data()[0] = x0;
-	mesh.point(info.v0).data()[1] = y0;
-
-	mesh.point(info.v1).data()[0] = (x0 + x1) / 2;
-	mesh.point(info.v1).data()[1] = (y0 + y1) / 2;
-	
-	for (auto i = mesh.vf_begin(info.v1); i != mesh.vf_end(info.v1); ++i)
-	{
-		auto normals = mesh.calc_face_normal(i.handle());
-		if (normals.data()[2] < 0)
-		{
-			mesh.point(info.v1).data()[0] = x0;
-			mesh.point(info.v1).data()[1] = y0;
-			return false;
-		}
-	}
-
-	mesh.point(info.v1).data()[0] = x1;
-	mesh.point(info.v1).data()[1] = y1;
-	return true;
 }
