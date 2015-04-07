@@ -36,7 +36,13 @@ void OpenmeshHelper::InitPointData()
 	{
 		point_data[i] = new MyPoint[image->width];
 	}
-
+	for (int i = 0; i != image->height; ++i)
+	{
+		for (int j = 0; j != image->width; ++j)
+		{
+			point_data[i][j].point_type = None;
+		}
+	}
 
 	OpencvHelper helper;
 
@@ -48,7 +54,6 @@ void OpenmeshHelper::InitPointData()
 	{
 		for (int j = 0; j < contours->width; ++j)
 		{
-			point_data[i][j].point_type = None;
 			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
 			if (data[i * step + j] == 0)
 			{
@@ -57,7 +62,6 @@ void OpenmeshHelper::InitPointData()
 		}
 	}
 	ConnectMesh(false);
-
 	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
 	{
 		int from_x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
@@ -70,13 +74,6 @@ void OpenmeshHelper::InitPointData()
 		}
 	}
 	mesh.clear();
-	for (int i = 0; i < image->height; ++i)
-	{
-		for (int j = 0; j < image->width; ++j)
-		{
-			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
-		}
-	}
 
 	cvReleaseImage(&contours);
 	IplImage *area = cvCreateImage(cvGetSize(image), image->depth, 3);
@@ -136,14 +133,8 @@ void OpenmeshHelper::InitPointData()
 		}
 	}
 	mesh.clear();
-	for (int i = 0; i < image->height; ++i)
-	{
-		for (int j = 0; j < image->width; ++j)
-		{
-			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
-		}
-	}
 	cvReleaseImage(&edge);
+
 	cout << "Init point data complete" << endl;
 }
 //************************************
@@ -154,7 +145,7 @@ void OpenmeshHelper::InitPointData()
 // Qualifier:
 // 连接网格，遵循之前的规则将点连接成网格
 //************************************
-void OpenmeshHelper::ConnectMesh(bool isContour)
+void OpenmeshHelper::ConnectMesh(bool isContour = true)
 {
 	vector<MyMesh::VertexHandle> list;
 
@@ -177,7 +168,7 @@ void OpenmeshHelper::ConnectMesh(bool isContour)
 			switch (num)
 			{
 			case 0:
-				if (isContour)
+				if (!isContour)
 				{
 					list.clear();
 					list.push_back(point[0].point);
@@ -398,48 +389,6 @@ void OpenmeshHelper::DeletePairList()
 	point_pair_list = temp_list;
 	cout << "Delete pair list complete" << endl;
 }
-void OpenmeshHelper::SortVertices()
-{
-	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
-	{
-		int tear = 0;
-		int crease = 0;
-		for (auto it = mesh.voh_iter(i.handle()); it; ++it)
-		{
-			auto position = find(tear_list.begin(), tear_list.end(), it.handle());
-			if (position != tear_list.end())
-			{
-				++tear;
-				continue;
-			}
-
-			position = find(crease_list.begin(), crease_list.end(), it.handle());
-			if (position != crease_list.end())
-			{
-				++crease;
-			}
-		}
-		int x = mesh.point(i.handle()).data()[0];
-		int y = mesh.point(i.handle()).data()[1];
-		//TODO 点分类存在问题
-		if (tear == 0 && crease == 0)
-		{
-			point_data[x][y].point_type = Smooth;
-			continue;
-		}
-		if (tear == 2)
-		{
-			point_data[x][y].point_type = Tear;
-			continue;
-		}
-		if (crease == 2)
-		{
-			point_data[x][y].point_type = Crease;
-			continue;
-		}
-		point_data[x][y].point_type = Corner;
-	}
-}
 //************************************
 // Method:    Output
 // FullName:  OpenmeshHelper::Output
@@ -548,6 +497,7 @@ void OpenmeshHelper::CollapseEdge(MyMesh::HalfedgeHandle half)
 
 	mesh.collapse(half);
 	-- num_vertices;
+	
 	//调整合并后点的位置
 	RegulatePosition(info);
 	//调整点的颜色
@@ -612,8 +562,7 @@ void OpenmeshHelper::CollapseEdge(MyMesh::HalfedgeHandle half)
 void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 {
 	InitPointData();
-	ConnectMesh(true);
-	Output("D:/out.off");
+	ConnectMesh(this->image);
 	CountVertices();
 
 	InitPairList();
@@ -628,19 +577,20 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 	mesh.request_face_status();
 
 	while (num_vertices / num_all_vertices > rate)
-	//while (point_pair_list.size() > 0)
+		//while (point_pair_list.size() > 0)
 	{
 		pop_heap(point_pair_list.begin(), point_pair_list.end(), Compare);
 		auto half = point_pair_list[point_pair_list.size() - 1].edge;
 		point_pair_list.pop_back();
-		if (IsCollapseOK(half))
+
+		if (mesh.is_collapse_ok(half))
 		{
 			CollapseEdge(half);
 		}
 		else
 		{
 			half = mesh.opposite_halfedge_handle(half);
-			if (IsCollapseOK(half))
+			if (mesh.is_collapse_ok(half))
 			{
 				cout << "opposite" << endl;
 				CollapseEdge(half);
@@ -664,50 +614,4 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 	mesh.release_halfedge_status();
 	mesh.release_face_status();
 	cout << "Reduce Vertrices complete" << endl;
-}
-
-bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
-{
-	return mesh.is_collapse_ok(half);
-
-	if (!mesh.is_collapse_ok(half)) return false;
-	auto info = OpenMesh::Decimater::CollapseInfoT<MyMesh>::CollapseInfoT(mesh, half); 
-	int x0 = mesh.point(info.v0).data()[0];
-	int y0 = mesh.point(info.v0).data()[1];
-	int x1 = mesh.point(info.v1).data()[0];
-	int y1 = mesh.point(info.v1).data()[1];
-
-	mesh.point(info.v0).data()[0] = (x0 + x1) / 2;
-	mesh.point(info.v0).data()[1] = (y0 + y1) / 2;
-	
-	for (auto i = mesh.vf_begin(info.v0); i != mesh.vf_end(info.v0); ++i)
-	{
-		auto normals = mesh.calc_face_normal(i.handle());
-		if (normals.data()[2] < 0)
-		{
-			mesh.point(info.v0).data()[0] = x0;
-			mesh.point(info.v0).data()[1] = y0;
-			return false;
-		}
-	}
-	mesh.point(info.v0).data()[0] = x0;
-	mesh.point(info.v0).data()[1] = y0;
-
-	mesh.point(info.v1).data()[0] = (x0 + x1) / 2;
-	mesh.point(info.v1).data()[1] = (y0 + y1) / 2;
-	
-	for (auto i = mesh.vf_begin(info.v1); i != mesh.vf_end(info.v1); ++i)
-	{
-		auto normals = mesh.calc_face_normal(i.handle());
-		if (normals.data()[2] < 0)
-		{
-			mesh.point(info.v1).data()[0] = x0;
-			mesh.point(info.v1).data()[1] = y0;
-			return false;
-		}
-	}
-
-	mesh.point(info.v1).data()[0] = x1;
-	mesh.point(info.v1).data()[1] = y1;
-	return true;
 }
