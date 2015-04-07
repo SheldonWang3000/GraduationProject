@@ -53,13 +53,11 @@ private:
 	double num_all_vertices;
 
 	void InitPointData();
-	void ConnectMesh(bool isContour);
+	void ConnectMesh(bool isContour = true);
 	void CountVertices();
 	void InitPairList();
 	void LinkVertices();
 	void DeletePairList();
-	void SortVertices();
-	bool IsCollapseOK(MyMesh::HalfedgeHandle half);
 	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info);
 	void CollapseEdge(MyMesh::HalfedgeHandle half);
 public:
