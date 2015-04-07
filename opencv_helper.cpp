@@ -52,7 +52,7 @@ double OpencvHelper::get_T(IplImage *image)
 	}
 	return T;
 }
-void OpencvHelper::get_pic_edge(IplImage *image, IplImage *result)
+void OpencvHelper::pic_edge(IplImage *image, IplImage *result)
 {
 	IplImage *grey, *edge;
 	grey = cvCreateImage(cvGetSize(image), image->depth, 1);
@@ -74,65 +74,4 @@ void OpencvHelper::get_pic_edge(IplImage *image, IplImage *result)
 	cvReleaseImage(&edge);
 	//cvDestroyWindow("edge");
 	//
-}
-
-void OpencvHelper::get_pic_area(IplImage *image, IplImage *result)
-{
-	IplImage *area = cvCreateImage(cvGetSize(image), image->depth, 1);
-	area = cvCloneImage(image);
-	cvPyrMeanShiftFiltering(image, area, 30, 20, 3);
-
-	// 转为灰度图  
-	IplImage *pGrayImage = cvCreateImage(cvGetSize(area), IPL_DEPTH_8U, 1);
-	cvCvtColor(area, pGrayImage, CV_BGR2GRAY);
-	// 转为二值图  
-	IplImage *pBinaryImage = cvCreateImage(cvGetSize(pGrayImage), IPL_DEPTH_8U, 1);
-	cvThreshold(pGrayImage, pBinaryImage, 130, 255, CV_THRESH_BINARY);
-
-	// 检索轮廓并返回检测到的轮廓的个数  
-	CvMemStorage *pcvMStorage = cvCreateMemStorage();
-	CvSeq *pcvSeq = NULL;
-	cvFindContours(pBinaryImage, pcvMStorage, &pcvSeq, sizeof(CvContour), CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE, cvPoint(0, 0));
-
-	// 画轮廓图  
-	int nLevels = 5;
-	// 填充成白色  
-	cvRectangle(result, cvPoint(0, 0), cvPoint(result->width, result->height), CV_RGB(255, 255, 255), CV_FILLED);
-	cvDrawContours(result, pcvSeq, CV_RGB(0, 0, 0), CV_RGB(0, 0, 0), 5, 2);
-
-	cv::RNG rng = cv::theRNG();
-	cv::Mat tempMat(result, 0);
-	cv::Mat mask(tempMat.rows + 2, tempMat.cols + 2, CV_8UC1, cv::Scalar::all(0));
-	auto tt = cv::Scalar::all(2);
-	for (int i = 0; i < tempMat.rows; ++i)    //opencv图像等矩阵也是基于0索引的
-		for (int j = 0; j < tempMat.cols; ++j)
-			if (mask.at<uchar>(i + 1, j + 1) == 0)
-			{
-				cv::Scalar newcolor(rng(256), rng(256), rng(256));
-				floodFill(tempMat, mask, cv::Point(j, i), newcolor, 0, tt, tt);
-			}
-}
-void OpencvHelper::get_pic_contours(IplImage *image, IplImage *result)
-{
-	IplImage *area = cvCreateImage(cvGetSize(image), image->depth, 1);
-	area = cvCloneImage(image);
-	cvPyrMeanShiftFiltering(image, area, 30, 20, 3);
-
-	// 转为灰度图  
-	IplImage *pGrayImage = cvCreateImage(cvGetSize(area), IPL_DEPTH_8U, 1);
-	cvCvtColor(area, pGrayImage, CV_BGR2GRAY);
-	// 转为二值图  
-	IplImage *pBinaryImage = cvCreateImage(cvGetSize(pGrayImage), IPL_DEPTH_8U, 1);
-	cvThreshold(pGrayImage, pBinaryImage, 130, 255, CV_THRESH_BINARY);
-
-	// 检索轮廓并返回检测到的轮廓的个数  
-	CvMemStorage *pcvMStorage = cvCreateMemStorage();
-	CvSeq *pcvSeq = NULL;
-	cvFindContours(pBinaryImage, pcvMStorage, &pcvSeq, sizeof(CvContour), CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE, cvPoint(0, 0));
-
-	// 画轮廓图  
-	int nLevels = 5;
-	// 填充成白色  
-	cvRectangle(result, cvPoint(0, 0), cvPoint(result->width, result->height), CV_RGB(255, 255, 255), CV_FILLED);
-	cvDrawContours(result, pcvSeq, CV_RGB(0, 0, 0), CV_RGB(0, 0, 0), 5, 2);
 }
