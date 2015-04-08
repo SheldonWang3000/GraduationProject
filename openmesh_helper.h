@@ -43,6 +43,7 @@ private:
 	};
 	static bool Compare(Pair a, Pair b);
 	vector<Pair> point_pair_list;
+	vector<Pair> all_pair_list;
 	vector<ListLink> vertex_list;
 	vector<MyMesh::HalfedgeHandle> tear_list;
 	vector<MyMesh::HalfedgeHandle> crease_list;
@@ -57,10 +58,11 @@ private:
 	void CountVertices();
 	void InitPairList();
 	void LinkVertices();
-	void DeletePairList();
+	void DeletePairList(int flag);
 	void SortVertices();
+	void LoopReduce(double rate, bool visual);
 	bool IsCollapseOK(MyMesh::HalfedgeHandle half);
-	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info);
+	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info, int *x, int *y);
 	void CollapseEdge(MyMesh::HalfedgeHandle half);
 public:
 	void Output(string output_location);

@@ -377,6 +377,7 @@ void OpenmeshHelper::LinkVertices()
 			vertex_list[vertex_idx].last = vertex_list[vertex_idx].last->next;
 		}
 	}
+	all_pair_list = point_pair_list;
 	cout << "Link vertrices complete" << endl;
 }
 //************************************
@@ -387,20 +388,32 @@ void OpenmeshHelper::LinkVertices()
 // Qualifier:
 // 删除撕裂点与非撕裂点连接的边
 //************************************
-void OpenmeshHelper::DeletePairList()
+void OpenmeshHelper::DeletePairList(int flag)
 {
+	//flag == 1 代表是平滑点
+	//flag == 2 代表是撕裂点
 	vector<Pair> temp_list;
-	for (auto i = point_pair_list.begin(); i != point_pair_list.end(); ++i)
+	for (auto i = all_pair_list.begin(); i != all_pair_list.end(); ++i)
 	{
 		int from_x = mesh.point(mesh.from_vertex_handle(i->edge)).data()[0];
 		int from_y = mesh.point(mesh.from_vertex_handle(i->edge)).data()[1];
 		int to_x = mesh.point(mesh.to_vertex_handle(i->edge)).data()[0];
 		int to_y = mesh.point(mesh.to_vertex_handle(i->edge)).data()[1];
-		if ((point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge) ||
-			(!(point_data[from_x][from_y].isEdge || point_data[to_x][to_y].isEdge)))
+		if (flag == 1)
 		{
-			temp_list.push_back(*i);
+			if (!(point_data[from_x][from_y].isEdge || point_data[to_x][to_y].isEdge))
+			{
+				temp_list.push_back(*i);
+			}
 		}
+		else
+		{
+			if (point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge)
+			{
+				temp_list.push_back(*i);
+			}
+		}
+		
 	}
 	point_pair_list = temp_list;
 	cout << "Delete pair list complete" << endl;
@@ -475,17 +488,20 @@ bool OpenmeshHelper::Compare(Pair a, Pair b)
 {
 	return a.value > b.value;
 }
+
 //************************************
 // Method:    RegulatePosition
 // FullName:  OpenmeshHelper::RegulatePosition
 // Access:    private 
 // Returns:   void
 // Qualifier:
-// Parameter: OpenMesh::Decimater::CollapseInfoT<MyMesh> info
+// Parameter: OpenMesh::Decimater::CollapseInfoT<MyMesh> info collapse之后的信息对象
+// Parameter: int * x collapse之后的x位置
+// Parameter: int * y collapse之后的y位置
 // 计算点合并之后的位置，如果被消除的点是角落点，则角落点不变，如果2个点都是四边上的点，则如果在同一边则取中点
 // 如果不是同一边，则位置不变，如果2点中有一个点是四边点，则点的位置计算到边上，如果都不是则取中点
 //************************************
-void OpenmeshHelper::RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info)
+void OpenmeshHelper::RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info, int *x, int *y)
 {
 	int remove_x = info.p0.data()[0];
 	int remove_y = info.p0.data()[1];
@@ -497,8 +513,10 @@ void OpenmeshHelper::RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh>
 		(remove_x == image->height - 1 && remove_y == 0) ||
 		(remove_x == image->height - 1 && remove_y == image->width - 1))
 	{
-		mesh.point(info.v1).data()[0] = remove_x;
-		mesh.point(info.v1).data()[1] = remove_y;
+		*x = remove_x;
+		*y = remove_y;
+		/*mesh.point(info.v1).data()[0] = remove_x;
+		mesh.point(info.v1).data()[1] = remove_y;*/
 		return;
 	}
 	if ((remain_x == 0 && remain_y == 0) ||
@@ -506,6 +524,8 @@ void OpenmeshHelper::RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh>
 		(remain_x == image->height - 1 && remain_y == 0) ||
 		(remain_x == image->height - 1 && remain_y == image->width - 1))
 	{
+		*x = remain_x;
+		*y = remain_y;
 		return;
 	}
 	if (remove_x == 0 || remove_y == 0 || remove_x == image->height - 1 || remove_y == image->width - 1)
@@ -514,18 +534,26 @@ void OpenmeshHelper::RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh>
 		{
 			if ((remain_x == remove_x) || (remain_y == remove_y))
 			{
-				mesh.point(info.v1).data()[0] = (int)((info.p1.data()[0] + info.p0.data()[0]) / 2);
-				mesh.point(info.v1).data()[1] = (int)((info.p1.data()[1] + info.p0.data()[1]) / 2);
+				*x = (int)((info.p1.data()[0] + info.p0.data()[0]) / 2);
+				*y = (int)((info.p1.data()[1] + info.p0.data()[1]) / 2);
+				//mesh.point(info.v1).data()[0] = (int)((info.p1.data()[0] + info.p0.data()[0]) / 2);
+				//mesh.point(info.v1).data()[1] = (int)((info.p1.data()[1] + info.p0.data()[1]) / 2);
+				return;
 			}
 			else
 			{
+				*x = remain_x;
+				*y = remain_y;
 				return;
 			}
 		}
 		else
 		{
-			mesh.point(info.v1).data()[0] = remove_x;
-			mesh.point(info.v1).data()[1] = remove_y;
+			*x = remove_x;
+			*y = remove_y;
+			return;
+		/*	mesh.point(info.v1).data()[0] = remove_x;
+			mesh.point(info.v1).data()[1] = remove_y;*/
 		}
 
 	}
@@ -533,8 +561,17 @@ void OpenmeshHelper::RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh>
 	{
 		if (!(remain_x == 0 || remain_y == 0 || remain_x == image->height - 1 || remain_y == image->width - 1))
 		{
-			mesh.point(info.v1).data()[0] = (int)((info.p1.data()[0] + info.p0.data()[0]) / 2);
-			mesh.point(info.v1).data()[1] = (int)((info.p1.data()[1] + info.p0.data()[1]) / 2);
+			*x = (int)((info.p1.data()[0] + info.p0.data()[0]) / 2);
+			*y = (int)((info.p1.data()[1] + info.p0.data()[1]) / 2);
+			return;
+			/*mesh.point(info.v1).data()[0] = (int)((info.p1.data()[0] + info.p0.data()[0]) / 2);
+			mesh.point(info.v1).data()[1] = (int)((info.p1.data()[1] + info.p0.data()[1]) / 2);*/
+		}
+		else
+		{
+			*x = remain_x;
+			*y = remain_y;
+			return;
 		}
 	}
 }
@@ -554,12 +591,13 @@ void OpenmeshHelper::CollapseEdge(MyMesh::HalfedgeHandle half)
 	EdgeLink *remain_head = vertex_list[info.v1.idx()].head;
 
 	mesh.collapse(half);
-	-- num_vertices;
+	//-- num_vertices;
 	//调整合并后点的位置
-	RegulatePosition(info);
+	int x, y;
+	RegulatePosition(info, &x, &y);
+	mesh.point(info.v1).data()[0] = x;
+	mesh.point(info.v1).data()[1] = y;
 	//调整点的颜色
-	int x = mesh.point(info.v1).data()[0];
-	int y = mesh.point(info.v1).data()[1];
 	int remove_x = info.p0.data()[0];
 	int remove_y = info.p0.data()[1];
 	int remain_x = info.p1.data()[0];
@@ -613,48 +651,27 @@ void OpenmeshHelper::CollapseEdge(MyMesh::HalfedgeHandle half)
 // Access:    public 
 // Returns:   void
 // Qualifier:
-// Parameter: double rate 表示最后控制点占原总数的比例
-// Parameter: bool visual 表示是否显示计算中的比例，方便看程序运行到什么时候
+// Parameter: double rate 简化率，表示简化后剩余边的比例
+// Parameter: bool visual 标记，用于是否显示简化进度候
 //************************************
 void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 {
 	InitPointData();
 	ConnectMesh(true);
 	CountVertices();
-
+	SortVertices();
 	InitPairList();
 	LinkVertices();
-	DeletePairList();
-
-	make_heap(point_pair_list.begin(), point_pair_list.end(), Compare);
-
+	
 	mesh.request_edge_status();
 	mesh.request_vertex_status();
 	mesh.request_halfedge_status();
 	mesh.request_face_status();
-
-	while (num_vertices / num_all_vertices > rate)
-	//while (point_pair_list.size() > 0)
-	{
-		pop_heap(point_pair_list.begin(), point_pair_list.end(), Compare);
-		auto half = point_pair_list[point_pair_list.size() - 1].edge;
-		point_pair_list.pop_back();
-		if (IsCollapseOK(half))
-		{
-			CollapseEdge(half);
-		}
-		else
-		{
-			half = mesh.opposite_halfedge_handle(half);
-			if (IsCollapseOK(half))
-			{
-				cout << "opposite" << endl;
-				CollapseEdge(half);
-			}
-		}
-		if (visual)
-			cout << num_vertices / num_all_vertices << endl;
-	}
+	
+	DeletePairList(1);
+	LoopReduce(rate, visual);
+	DeletePairList(2);
+	LoopReduce(rate, visual);
 
 	mesh.garbage_collection();
 
@@ -672,19 +689,29 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 	cout << "Reduce Vertrices complete" << endl;
 }
 
+//************************************
+// Method:    IsCollapseOK
+// FullName:  OpenmeshHelper::IsCollapseOK
+// Access:    private 
+// Returns:   bool
+// Qualifier:
+// Parameter: MyMesh::HalfedgeHandle half
+// 用于判断collapse之后的面是否会出现翻转的现象，在collapse之前执行
+//************************************
 bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
 {
-	//return mesh.is_collapse_ok(half);
-
 	if (!mesh.is_collapse_ok(half)) return false;
 	auto info = OpenMesh::Decimater::CollapseInfoT<MyMesh>::CollapseInfoT(mesh, half); 
+	int x = 0;
+	int y = 0;
+	RegulatePosition(info, &x, &y);
 	int x0 = mesh.point(info.v0).data()[0];
 	int y0 = mesh.point(info.v0).data()[1];
 	int x1 = mesh.point(info.v1).data()[0];
 	int y1 = mesh.point(info.v1).data()[1];
 
-	mesh.point(info.v0).data()[0] = (x0 + x1) / 2;
-	mesh.point(info.v0).data()[1] = (y0 + y1) / 2;
+	mesh.point(info.v0).data()[0] = x;
+	mesh.point(info.v0).data()[1] = y;
 	
 	for (auto i = mesh.vf_begin(info.v0); i != mesh.vf_end(info.v0); ++i)
 	{
@@ -699,8 +726,8 @@ bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
 	mesh.point(info.v0).data()[0] = x0;
 	mesh.point(info.v0).data()[1] = y0;
 
-	mesh.point(info.v1).data()[0] = (x0 + x1) / 2;
-	mesh.point(info.v1).data()[1] = (y0 + y1) / 2;
+	mesh.point(info.v1).data()[0] = x;
+	mesh.point(info.v1).data()[1] = y;
 	
 	for (auto i = mesh.vf_begin(info.v1); i != mesh.vf_end(info.v1); ++i)
 	{
@@ -716,4 +743,44 @@ bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
 	mesh.point(info.v1).data()[0] = x1;
 	mesh.point(info.v1).data()[1] = y1;
 	return true;
+}
+
+//************************************
+// Method:    LoopReduce
+// FullName:  OpenmeshHelper::LoopReduce
+// Access:    private 
+// Returns:   void
+// Qualifier:
+// Parameter: double rate 简化率，表示简化后剩余边的比例
+// Parameter: bool visual 标记，用于是否显示简化进度
+// 简化边
+//************************************
+void OpenmeshHelper::LoopReduce(double rate, bool visual)
+{
+	num_all_vertices = point_pair_list.size();
+	num_vertices = num_all_vertices;
+	make_heap(point_pair_list.begin(), point_pair_list.end(), Compare);
+	while (num_vertices / num_all_vertices > rate)
+		//while (point_pair_list.size() > 0)
+	{
+		pop_heap(point_pair_list.begin(), point_pair_list.end(), Compare);
+		auto half = point_pair_list[point_pair_list.size() - 1].edge;
+		point_pair_list.pop_back();
+		--num_vertices;
+		if (IsCollapseOK(half))
+		{
+			CollapseEdge(half);
+		}
+		else
+		{
+			half = mesh.opposite_halfedge_handle(half);
+			if (IsCollapseOK(half))
+			{
+				cout << "opposite" << endl;
+				CollapseEdge(half);
+			}
+		}
+		if (visual)
+			cout << num_vertices / num_all_vertices << endl;
+	}
 }
