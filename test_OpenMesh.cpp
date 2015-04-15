@@ -26,39 +26,52 @@ void output(MyMesh mesh)
 int main()
 {
 	MyMesh mesh;
-	MyMesh::VertexHandle vhandle[4];
+	MyMesh::VertexHandle vhandle[9];
 	vhandle[0] = mesh.add_vertex(MyMesh::Point(0, 0, 0));
 	vhandle[1] = mesh.add_vertex(MyMesh::Point(1, 0, 0));
 	vhandle[2] = mesh.add_vertex(MyMesh::Point(1, 1, 0));
 	vhandle[3] = mesh.add_vertex(MyMesh::Point(0, 1, 0));
+	vhandle[4] = mesh.add_vertex(MyMesh::Point(-1, 1, 0));
+	vhandle[5] = mesh.add_vertex(MyMesh::Point(-1, 0, 0));
+	vhandle[6] = mesh.add_vertex(MyMesh::Point(-1, -1, 0));
+	vhandle[7] = mesh.add_vertex(MyMesh::Point(0, -1, 0));
+	vhandle[8] = mesh.add_vertex(MyMesh::Point(1, -1, 0));
 	
 	vector<MyMesh::VertexHandle> list;
 	list.push_back(vhandle[0]);
 	list.push_back(vhandle[3]);
-	list.push_back(vhandle[1]);
-	
-	mesh.add_face(list);
-	list.clear();
-	list.push_back(vhandle[3]);
-	list.push_back(vhandle[2]);
-	list.push_back(vhandle[1]);
-	
+	list.push_back(vhandle[4]);
+	list.push_back(vhandle[5]);
 	mesh.add_face(list);
 
-	for (auto i = mesh.faces_begin(); i != mesh.faces_end(); ++i)
+	list.clear();
+	list.push_back(vhandle[0]);
+	list.push_back(vhandle[5]);
+	list.push_back(vhandle[6]);
+	list.push_back(vhandle[7]);
+	mesh.add_face(list);
+
+	list.clear();
+	list.push_back(vhandle[0]);
+	list.push_back(vhandle[7]);
+	list.push_back(vhandle[8]);
+	list.push_back(vhandle[1]);
+	mesh.add_face(list);
+
+	list.clear();
+	list.push_back(vhandle[0]);
+	list.push_back(vhandle[1]);
+	list.push_back(vhandle[2]);
+	list.push_back(vhandle[3]);
+	mesh.add_face(list);
+	mesh.triangulate();
+	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
 	{
-		auto k = mesh.calc_face_normal(i.handle());
-		if (i.handle().idx() == 1)
+		if (i.handle().idx() == 0)
 		{
-			vector<MyMesh::HalfedgeHandle> list;
-			for (auto j = mesh.fh_begin(i.handle()); j != mesh.fh_end(i.handle()); ++j)
+			for (auto k = mesh.voh_begin(i.handle()); k != mesh.voh_end(i.handle()); ++k)
 			{
-				list.push_back(j.handle());
-			}
-			int t = 2;
-			for (auto j = mesh.fh_begin(i.handle()); j != mesh.fh_end(i.handle()); ++j)
-			{
-				//mesh.set_next_halfedge_handle(j.handle(), list[t--]);
+				cout << mesh.to_vertex_handle(k.handle()).idx() << endl;
 			}
 		}
 	}

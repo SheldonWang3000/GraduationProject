@@ -41,15 +41,36 @@ private:
 		PointType point_type;
 		bool isEdge;
 	};
+	struct Position
+	{
+		int x, y;
+		friend bool operator==(const Position &l, const Position &r)
+		{
+			return l.x == r.x && l.y == r.y;
+		}
+		friend bool operator<(const Position &l, const Position &r)
+		{
+			if (l.x != r.x)
+			{
+				return l.x < r.x;
+			}
+			return l.y < r.y;
+		}
+	};
 	static bool Compare(Pair a, Pair b);
 	vector<Pair> point_pair_list;
 	vector<Pair> all_pair_list;
+	vector<Pair> second_pair_list;
 	vector<ListLink> vertex_list;
+	vector<MyPoint> control_list;
 	vector<MyMesh::HalfedgeHandle> tear_list;
 	vector<MyMesh::HalfedgeHandle> crease_list;
+	multimap<Position, Position> tear_map;
+	multimap<Position, Position> crease_map;
 	MyMesh mesh;
 	IplImage *image;
 	MyPoint **point_data;
+	bool **edge_data;
 	double num_vertices;
 	double num_all_vertices;
 
@@ -64,6 +85,7 @@ private:
 	bool IsCollapseOK(MyMesh::HalfedgeHandle half);
 	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info, int *x, int *y);
 	void CollapseEdge(MyMesh::HalfedgeHandle half);
+	void OptimizePosition();
 public:
 	void Output(string output_location);
 	void ReduceVertices(double rate, bool visual);

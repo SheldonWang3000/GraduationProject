@@ -1,7 +1,7 @@
 #include "openmesh_helper.h"
+#include "Eigen/Dense"
 #include <iostream>
 using namespace std;
-
 //************************************
 // Method:    OpenmeshHelper
 // FullName:  OpenmeshHelper::OpenmeshHelper
@@ -37,96 +37,120 @@ void OpenmeshHelper::InitPointData()
 		point_data[i] = new MyPoint[image->width];
 	}
 
-	
-
 	OpencvHelper helper;
 
-	IplImage *contours = cvCreateImage(cvGetSize(image), image->depth, 1);
-	helper.get_pic_contours(image, contours);
-	uchar *data = (uchar *)contours->imageData;
-	int step = contours->widthStep / sizeof(uchar);
-	for (int i = 0; i < contours->height; ++i)
-	{
-		for (int j = 0; j < contours->width; ++j)
-		{
-			point_data[i][j].point_type = None;
-			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
-			if (data[i * step + j] == 0)
-			{
-				point_data[i][j].isEdge = true;
-			}
-			else
-			{
-				point_data[i][j].isEdge = false;
-			}
-		}
-	}
-	ConnectMesh(false);
+	//IplImage *contours = cvCreateImage(cvGetSize(image), image->depth, 1);
+	//helper.get_pic_contours(image, contours);
+	//uchar *data = (uchar *)contours->imageData;
+	//int step = contours->widthStep / sizeof(uchar);
+	//for (int i = 0; i < contours->height; ++i)
+	//{
+	//	for (int j = 0; j < contours->width; ++j)
+	//	{
+	//		point_data[i][j].point_type = None;
+	//		//point_data[i][j].point = mesh.add_vertex(MyMesh::Point(j, image->height - i, 0));
+	//		point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
+	//		if (data[i * step + j] == 0)
+	//		{
+	//			point_data[i][j].isEdge = true;
+	//		}
+	//		else
+	//		{
+	//			point_data[i][j].isEdge = false;
+	//		}
+	//	}
+	//}
+	//ConnectMesh(false);
 
-	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
-	{
-		int from_x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
-		int from_y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
-		int to_x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
-		int to_y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
-		if (point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge)
-		{
-			tear_list.push_back(i.handle());
-		}
-	}
-	mesh.clear();
-	mesh.garbage_collection();
-	for (int i = 0; i < image->height; ++i)
-	{
-		for (int j = 0; j < image->width; ++j)
-		{
-			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
-		}
-	}
+	//for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
+	//{
+	//	int from_x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
+	//	int from_y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
+	//	int to_x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
+	//	int to_y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
+	//	
+	//	if (point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge)
+	//	{
+	//		//tear_list.push_back(i.handle());
+	//		Position from, to;
+	//		from.x = from_x;
+	//		from.y = from_y;
+	//		to.x = to_x;
+	//		to.y = to_y;
+	//		tear_map.insert(make_pair(from, to));
+	//	}
+	//}
+	//mesh.clear();
+	//mesh.garbage_collection();
+	//for (int i = 0; i < image->height; ++i)
+	//{
+	//	for (int j = 0; j < image->width; ++j)
+	//	{
+	//		//point_data[i][j].point = mesh.add_vertex(MyMesh::Point(j, image->width - i - 1, 0));
+	//		point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
+	//	}
+	//}
 
-	cvReleaseImage(&contours);
-	IplImage *area = cvCreateImage(cvGetSize(image), image->depth, 3);
-	helper.get_pic_area(image, area);
-	data = (uchar *)area->imageData;
-	step = area->widthStep / sizeof(uchar);
-	map<int, int> color_map;
-	int color_idx = 0;
-	for (int i = 0; i < area->height; ++ i)
-	{
-		for (int j = 0; j < area->width; ++ j)
-		{
-			int color = 0;
-			CvScalar temp_color = cvGet2D(area, i, j);
-			
-			for (int k = 0; k < 3; ++k)
-			{
-				color += temp_color.val[k];
-				color *= 1000;
-			}
-			if (color_map.count(color) == 0)
-			{
-				color_map[color] = color_idx++;
-			}
-			point_data[i][j].area_idx = color_map[color];
-			if (point_data[i][j].isEdge) point_data[i][j].area_idx = -1;
-		}
-	}
-	cvReleaseImage(&area);
+	//cvReleaseImage(&contours);
+	//IplImage *area = cvCreateImage(cvGetSize(image), image->depth, 3);
+	//helper.get_pic_area(image, area);
+	//data = (uchar *)area->imageData;
+	//step = area->widthStep / sizeof(uchar);
+	//map<int, int> color_map;
+	//int color_idx = 0;
+	//for (int i = 0; i < area->height; ++ i)
+	//{
+	//	for (int j = 0; j < area->width; ++ j)
+	//	{
+	//		int color = 0;
+	//		CvScalar temp_color = cvGet2D(area, i, j);
+	//		
+	//		for (int k = 0; k < 3; ++k)
+	//		{
+	//			color += temp_color.val[k];
+	//			color *= 1000;
+	//		}
+	//		if (color_map.count(color) == 0)
+	//		{
+	//			color_map[color] = color_idx++;
+	//		}
+	//		point_data[i][j].area_idx = color_map[color];
+	//		if (point_data[i][j].isEdge) point_data[i][j].area_idx = -1;
+	//	}
+	//}
+	//cvReleaseImage(&area);
 	IplImage *edge = cvCreateImage(cvGetSize(image), image->depth, 1);
 	
 	helper.get_pic_edge(image, edge);
-	data = (uchar*)edge->imageData;
-	step = edge->widthStep / sizeof(uchar);
+	uchar *data = (uchar*)edge->imageData;
+	int step = edge->widthStep / sizeof(uchar);
 	for (int i = 0; i < image->height; ++i)
 	{
 		for (int j = 0; j < image->width; ++j)
 		{
+			point_data[i][j].point_type = None;
+			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
 			if (data[i * step + j] == 255)
 				point_data[i][j].isEdge = true;
 			else
 				point_data[i][j].isEdge = false;
 		}
 	}
+	edge_data = new bool*[image->height];
+	for (int i = 0; i != image->height; ++i)
+	{
+		edge_data[i] = new bool[image->width];
+	}
+	for (int i = 0; i < image->height; ++i)
+	{
+		for (int j = 0; j < image->width; ++j)
+		{
+			if (point_data[i][j].isEdge)
+				edge_data[i][j] = true;
+			else
+				edge_data[i][j] = false;
+		}
+	}
 	ConnectMesh(false);
 	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
 	{
@@ -136,7 +160,13 @@ void OpenmeshHelper::InitPointData()
 		int to_y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
 		if (point_data[from_x][from_y].isEdge && point_data[to_x][to_y].isEdge)
 		{
-			crease_list.push_back(i.handle());
+			//crease_list.push_back(i.handle());
+			Position from, to;
+			from.x = from_x;
+			from.y = from_y;
+			to.x = to_x;
+			to.y = to_y;
+			crease_map.insert(make_pair(from, to));
 		}
 	}
 	mesh.clear();
@@ -147,6 +177,7 @@ void OpenmeshHelper::InitPointData()
 		for (int j = 0; j < image->width; ++j)
 		{
 			point_data[i][j].color = cvGet2D(image, i, j);
+			//point_data[i][j].point = mesh.add_vertex(MyMesh::Point(j, image->height - i, 0));
 			point_data[i][j].point = mesh.add_vertex(MyMesh::Point(i, j, 0));
 		}
 	}
@@ -420,38 +451,83 @@ void OpenmeshHelper::DeletePairList(int flag)
 }
 void OpenmeshHelper::SortVertices()
 {
+	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++ i)
+	{
+		int from_x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
+		int from_y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
+		int to_x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
+		int to_y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
+		Position from, to;
+		from.x = from_x;
+		from.y = from_y;
+		to.x = to_x;
+		to.y = to_y; 
+	/*	bool isTear = false;
+		for (auto k = tear_map.lower_bound(from); k != tear_map.upper_bound(from); ++k)
+		{
+			if (k->second == to)
+			{
+				tear_list.push_back(i.handle());
+				isTear = true;
+				break;
+			}
+		}
+		
+		if (isTear)
+			continue;*/
+		for (auto k = crease_map.lower_bound(from); k != crease_map.upper_bound(from); ++k)
+		{
+			if (k->second == to)
+			{
+				crease_list.push_back(i.handle());
+				break;
+			}
+		}
+	}
 	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
 	{
 		int tear = 0;
-		int crease = 0;
+		int crease = 0; 
+		int x = mesh.point(i.handle()).data()[0];
+		int y = mesh.point(i.handle()).data()[1];
+		if ((x == 0 && y == 0) || (x == 0 & y == image->height - 1)
+			|| (x == image->width - 1 && y == 0) || (x == image->width - 1 && y == image->height - 1))
+		{
+			point_data[x][y].point_type = Corner;
+			continue;
+		}
+		if (x == 0 || y == 0 || x == image->width - 1 || y == image->height - 1)
+		{
+			point_data[x][y].point_type = Crease;
+			continue;
+		}
 		for (auto it = mesh.voh_iter(i.handle()); it; ++it)
 		{
-			auto position = find(tear_list.begin(), tear_list.end(), it.handle());
+		/*	auto position = find(tear_list.begin(), tear_list.end(), it.handle());
 			if (position != tear_list.end())
 			{
 				++tear;
 				continue;
 			}
-
-			position = find(crease_list.begin(), crease_list.end(), it.handle());
+*/
+			auto position = find(crease_list.begin(), crease_list.end(), it.handle());
 			if (position != crease_list.end())
 			{
 				++crease;
 			}
 		}
-		int x = mesh.point(i.handle()).data()[0];
-		int y = mesh.point(i.handle()).data()[1];
+		
 		//TODO 点分类存在问题
 		if (tear == 0 && crease == 0)
 		{
 			point_data[x][y].point_type = Smooth;
 			continue;
 		}
-		if (tear == 2)
+	/*	if (tear == 2)
 		{
 			point_data[x][y].point_type = Tear;
 			continue;
-		}
+		}*/
 		if (crease == 2)
 		{
 			point_data[x][y].point_type = Crease;
@@ -459,6 +535,17 @@ void OpenmeshHelper::SortVertices()
 		}
 		point_data[x][y].point_type = Corner;
 	}
+	
+	ofstream outfile("D:/type.txt");
+	for (int i = 0; i != image->height; ++i)
+	{
+		for (int j = 0; j != image->width; ++j)
+		{
+			outfile << point_data[i][j].point_type << ' ';
+		}
+		outfile << endl;
+	}
+	outfile.close();
 }
 //************************************
 // Method:    Output
@@ -673,6 +760,9 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 	DeletePairList(2);
 	LoopReduce(rate, visual);
 
+	all_pair_list = second_pair_list;
+	LoopReduce(rate, visual);
+
 	mesh.garbage_collection();
 
 	mesh.request_face_normals();
@@ -686,6 +776,7 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 	mesh.release_vertex_status();
 	mesh.release_halfedge_status();
 	mesh.release_face_status();
+	OptimizePosition();
 	cout << "Reduce Vertrices complete" << endl;
 }
 
@@ -764,7 +855,8 @@ void OpenmeshHelper::LoopReduce(double rate, bool visual)
 		//while (point_pair_list.size() > 0)
 	{
 		pop_heap(point_pair_list.begin(), point_pair_list.end(), Compare);
-		auto half = point_pair_list[point_pair_list.size() - 1].edge;
+		Pair pair = point_pair_list[point_pair_list.size() - 1];
+		auto half = pair.edge;
 		point_pair_list.pop_back();
 		--num_vertices;
 		if (IsCollapseOK(half))
@@ -779,8 +871,58 @@ void OpenmeshHelper::LoopReduce(double rate, bool visual)
 				cout << "opposite" << endl;
 				CollapseEdge(half);
 			}
+			else
+			{
+				second_pair_list.push_back(pair);
+			}
 		}
 		if (visual)
 			cout << num_vertices / num_all_vertices << endl;
+	}
+}
+
+void OpenmeshHelper::OptimizePosition()
+{
+	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
+	{
+		int x = mesh.point(i.handle()).data()[0];
+		int y = mesh.point(i.handle()).data()[1];
+		control_list.push_back(point_data[x][y]);
+	}
+	Eigen::MatrixXf V, X, Y;
+	V = Eigen::MatrixXf::Zero(2, control_list.size());
+	X = Eigen::MatrixXf::Zero(2, control_list.size());
+	Y = Eigen::MatrixXf::Zero(control_list.size(), control_list.size());
+	for (int i = 0; i != control_list.size(); ++ i)
+	{
+		//TODO 未考虑Tear点
+		int x = mesh.point(control_list[i].point).data()[0];
+		int y = mesh.point(control_list[i].point).data()[1];
+		X(i, 0) = x;
+		X(i, 1) = y;
+
+		//处理Y
+		if (control_list[i].point_type == Corner)
+		{
+			Y(control_list[i].point.idx() - 1, i) = 1;
+			continue;
+		}
+		if (control_list[i].point_type == Crease)
+		{
+			Y(control_list[i].point.idx() - 1, i) = (double)1 / 6;
+			continue;
+		}
+		auto point = control_list[i].point;
+		int valence = 0;
+		vector<MyMesh::VertexHandle> out_point_list;
+		out_point_list.push_back(point);
+		for (auto j = mesh.voh_begin(point); j != mesh.voh_end(point); ++j)
+		{
+			++valence;
+			out_point_list.push_back(mesh.to_vertex_handle(j.handle()));
+		}
+		Eigen::MatrixXf S;
+		S = Eigen::MatrixXf::Zero(valence + 1, valence + 1);
+		//Y(, i);
 	}
 }

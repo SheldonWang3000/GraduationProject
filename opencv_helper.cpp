@@ -66,7 +66,7 @@ void OpencvHelper::get_pic_edge(IplImage *image, IplImage *result)
 	cvCanny(grey, edge, ul - 0.3 * dl, ul + dl, 3);
 
 	cvCopy(edge, result, NULL);
-
+	//Output(result, "D:/edge");
 	//cvNamedWindow("edge", CV_WINDOW_AUTOSIZE);
 	//cvShowImage("edge",edge);
 	//cvWaitKey(0);
@@ -135,4 +135,24 @@ void OpencvHelper::get_pic_contours(IplImage *image, IplImage *result)
 	// Ìî³ä³É°×É«  
 	cvRectangle(result, cvPoint(0, 0), cvPoint(result->width, result->height), CV_RGB(255, 255, 255), CV_FILLED);
 	cvDrawContours(result, pcvSeq, CV_RGB(0, 0, 0), CV_RGB(0, 0, 0), 5, 2);
+	//Output(result, "D:/contours");
+}
+
+void OpencvHelper::Output(IplImage *image, string position)
+{
+	string str = position + ".jpg";
+	cvSaveImage(str.c_str(), image);
+	uchar *data = (uchar*)image->imageData;
+	int step = image->widthStep / sizeof(uchar);
+	ofstream out(position + ".txt");
+	for (int i = 0; i < image->height; ++i)
+	{
+		for (int j = 0; j < image->width; ++j)
+		{
+			int t = data[i * step + j];
+			out << t << ' ';
+		}
+		out << endl;
+	}
+	out.close();
 }

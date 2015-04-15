@@ -9,6 +9,7 @@ public:
 	void get_pic_area(IplImage *image, IplImage *result);
 	void get_pic_contours(IplImage *image, IplImage *result);
 private:
+	void Output(IplImage *image, string position);
 	double get_T(IplImage *image);
 	double get_delta(vector<double> list, double avg);
 	double get_avg(vector<double> list);
