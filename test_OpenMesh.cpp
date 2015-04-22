@@ -3,17 +3,30 @@
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh>
 #include <OpenMesh/Tools/Decimater/CollapseInfoT.hh>
+#include "Eigen/Dense"
 #include "opencv_helper.h"
 using namespace std;
+using namespace Eigen;
 typedef OpenMesh::PolyMesh_ArrayKernelT<> MyMesh;
-
+enum PointType
+{
+	None, Crease, Tear, Corner, Smooth
+};
+struct MyPoint
+{
+	MyMesh::VertexHandle point;
+	CvScalar color;
+	int area_idx;
+	PointType point_type;
+	bool isEdge;
+};
 void output(MyMesh mesh)
 {
 	try
 	{
 		if ( !OpenMesh::IO::write_mesh(mesh, "D:/test.off") )
 		{
-			std::cerr << "Cannot write mesh to file 'output.off'" << std::endl;
+			std::cout << "Cannot write mesh to file 'output.off'" << std::endl;
 			return;
 		}
 	}
@@ -26,56 +39,69 @@ void output(MyMesh mesh)
 int main()
 {
 	MyMesh mesh;
-	MyMesh::VertexHandle vhandle[9];
-	vhandle[0] = mesh.add_vertex(MyMesh::Point(0, 0, 0));
-	vhandle[1] = mesh.add_vertex(MyMesh::Point(1, 0, 0));
-	vhandle[2] = mesh.add_vertex(MyMesh::Point(1, 1, 0));
-	vhandle[3] = mesh.add_vertex(MyMesh::Point(0, 1, 0));
-	vhandle[4] = mesh.add_vertex(MyMesh::Point(-1, 1, 0));
-	vhandle[5] = mesh.add_vertex(MyMesh::Point(-1, 0, 0));
-	vhandle[6] = mesh.add_vertex(MyMesh::Point(-1, -1, 0));
-	vhandle[7] = mesh.add_vertex(MyMesh::Point(0, -1, 0));
-	vhandle[8] = mesh.add_vertex(MyMesh::Point(1, -1, 0));
-	
-	vector<MyMesh::VertexHandle> list;
-	list.push_back(vhandle[0]);
-	list.push_back(vhandle[3]);
-	list.push_back(vhandle[4]);
-	list.push_back(vhandle[5]);
-	mesh.add_face(list);
+	// Add some vertices as in the illustration above
+	MyMesh::VertexHandle vhandle[7];
 
-	list.clear();
-	list.push_back(vhandle[0]);
-	list.push_back(vhandle[5]);
-	list.push_back(vhandle[6]);
-	list.push_back(vhandle[7]);
-	mesh.add_face(list);
+	vhandle[0] = mesh.add_vertex(MyMesh::Point(-1, 1, 0));
+	vhandle[1] = mesh.add_vertex(MyMesh::Point(-1, 3, 0));
+	vhandle[2] = mesh.add_vertex(MyMesh::Point(0, 0, 0));
+	vhandle[3] = mesh.add_vertex(MyMesh::Point(0, 2, 0));
+	vhandle[4] = mesh.add_vertex(MyMesh::Point(0, 4, 0));
+	vhandle[5] = mesh.add_vertex(MyMesh::Point(1, 1, 0));
+	vhandle[6] = mesh.add_vertex(MyMesh::Point(1, 3, 0));
 
-	list.clear();
-	list.push_back(vhandle[0]);
-	list.push_back(vhandle[7]);
-	list.push_back(vhandle[8]);
-	list.push_back(vhandle[1]);
-	mesh.add_face(list);
+	// Add three quad faces
+	std::vector<MyMesh::VertexHandle> face_vhandles;
 
-	list.clear();
-	list.push_back(vhandle[0]);
-	list.push_back(vhandle[1]);
-	list.push_back(vhandle[2]);
-	list.push_back(vhandle[3]);
-	mesh.add_face(list);
-	mesh.triangulate();
-	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
-	{
-		if (i.handle().idx() == 0)
-		{
-			for (auto k = mesh.voh_begin(i.handle()); k != mesh.voh_end(i.handle()); ++k)
-			{
-				cout << mesh.to_vertex_handle(k.handle()).idx() << endl;
-			}
+	face_vhandles.push_back(vhandle[1]);
+	face_vhandles.push_back(vhandle[0]);
+	face_vhandles.push_back(vhandle[2]);
+	face_vhandles.push_back(vhandle[3]);
+	mesh.add_face(face_vhandles);
+
+	face_vhandles.clear();
+
+	face_vhandles.push_back(vhandle[1]);
+	face_vhandles.push_back(vhandle[3]);
+	face_vhandles.push_back(vhandle[6]);
+	face_vhandles.push_back(vhandle[4]);
+	mesh.add_face(face_vhandles);
+
+	face_vhandles.clear();
+
+	face_vhandles.push_back(vhandle[3]);
+	face_vhandles.push_back(vhandle[2]);
+	face_vhandles.push_back(vhandle[5]);
+	face_vhandles.push_back(vhandle[6]);
+	mesh.add_face(face_vhandles);
+
+	// Now find the edge between vertex vhandle[2]
+	// and vhandle[3]
+	for (auto it = mesh.halfedges_begin(); it != mesh.halfedges_end(); ++it) {
+
+		if (mesh.to_vertex_handle(it.handle()) == vhandle[3] &&
+			mesh.from_vertex_handle(it.handle()) == vhandle[2]) {
+			cout << it.handle().idx() << endl;
+			// Collapse edge
+			mesh.request_halfedge_status();
+			mesh.request_vertex_status();
+			mesh.request_face_status();
+			mesh.request_edge_status();
+			if (mesh.is_collapse_ok(it.handle()))
+				mesh.collapse(it.handle());
+			break;
 		}
 	}
 
+	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
+	{
+		cout << i.handle().idx() << ":" << mesh.status(i).deleted() << endl;
+		if (i.handle().idx() == 4)
+		{
+			cout << "----------" << mesh.from_vertex_handle(i) << "->" << mesh.to_vertex_handle(i) << endl;
+		}
+	}
+	// Our mesh now looks like in the illustration above after the collapsing.
 	output(mesh);
 
 	system("pause");

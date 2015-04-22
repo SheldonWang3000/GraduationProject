@@ -1,15 +1,12 @@
 #include <cstdio>
 #include <iostream>
-#include <vector>
-#include <algorithm>
-#include <functional>
-#include <time.h>
+#include "Eigen/Dense"
 using namespace std;
+using namespace Eigen;
 int main()
 {
-	double a;
-	a = (double)1 / 6;
-	cout << a << endl;
+	
+	cout << 1.0 / 3 << endl;
 	system("pause");
 	return 0;
 }

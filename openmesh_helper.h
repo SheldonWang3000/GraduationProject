@@ -21,7 +21,7 @@ private:
 		int value;
 		friend bool operator==(const Pair &l, const Pair &r)
 		{
-			return l.edge == r.edge;
+			return l.edge.idx() == r.edge.idx();
 		}
 	};
 	struct EdgeLink
@@ -37,13 +37,21 @@ private:
 	{
 		MyMesh::VertexHandle point;
 		CvScalar color;
-		int area_idx;
+		int area_idx, x, y;
 		PointType point_type;
 		bool isEdge;
+		friend bool operator==(const MyPoint &l, const MyPoint &r)
+		{
+			return l.point == r.point;
+		}
+		friend bool operator<(const MyPoint &l, const MyPoint &r)
+		{
+			return l.point.idx() < r.point.idx();
+		}
 	};
 	struct Position
 	{
-		int x, y;
+		double x, y;
 		friend bool operator==(const Position &l, const Position &r)
 		{
 			return l.x == r.x && l.y == r.y;
@@ -65,25 +73,28 @@ private:
 	vector<MyPoint> control_list;
 	vector<MyMesh::HalfedgeHandle> tear_list;
 	vector<MyMesh::HalfedgeHandle> crease_list;
+	map<Position, MyPoint> control_map;
 	multimap<Position, Position> tear_map;
 	multimap<Position, Position> crease_map;
 	MyMesh mesh;
 	IplImage *image;
 	MyPoint **point_data;
-	bool **edge_data;
+	bool exact = false;
 	double num_vertices;
 	double num_all_vertices;
+	double all_num;
 
 	void InitPointData();
 	void ConnectMesh(bool isContour);
 	void CountVertices();
 	void InitPairList();
 	void LinkVertices();
+	void InsertCreaseEdge();
 	void DeletePairList(int flag);
 	void SortVertices();
 	void LoopReduce(double rate, bool visual);
 	bool IsCollapseOK(MyMesh::HalfedgeHandle half);
-	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info, int *x, int *y);
+	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info, double *x, double *y);
 	void CollapseEdge(MyMesh::HalfedgeHandle half);
 	void OptimizePosition();
 public:
