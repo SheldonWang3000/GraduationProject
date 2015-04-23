@@ -24,31 +24,7 @@ private:
 			return l.edge.idx() == r.edge.idx();
 		}
 	};
-	struct EdgeLink
-	{
-		Pair pair;
-		EdgeLink *next;
-	};
-	struct ListLink
-	{
-		EdgeLink *head, *last;
-	};
-	struct MyPoint
-	{
-		MyMesh::VertexHandle point;
-		CvScalar color;
-		int area_idx, x, y;
-		PointType point_type;
-		bool isEdge;
-		friend bool operator==(const MyPoint &l, const MyPoint &r)
-		{
-			return l.point == r.point;
-		}
-		friend bool operator<(const MyPoint &l, const MyPoint &r)
-		{
-			return l.point.idx() < r.point.idx();
-		}
-	};
+	
 	struct Position
 	{
 		double x, y;
@@ -69,28 +45,24 @@ private:
 	vector<Pair> point_pair_list;
 	vector<Pair> all_pair_list;
 	vector<Pair> second_pair_list;
-	vector<ListLink> vertex_list;
-	vector<MyPoint> control_list;
+	vector<MyMesh::VertexHandle> control_list;
 	vector<MyMesh::HalfedgeHandle> tear_list;
 	vector<MyMesh::HalfedgeHandle> crease_list;
-	map<Position, MyPoint> control_map;
+	map<Position, MyMesh::VertexHandle> control_map;
 	multimap<Position, Position> tear_map;
 	multimap<Position, Position> crease_map;
 	MyMesh mesh;
 	IplImage *image;
-	MyPoint **point_data;
+	MyMesh::VertexHandle **point_data;
 	bool exact = false;
 	double num_vertices;
 	double num_all_vertices;
-	double all_num;
 
 	void InitPointData();
 	void ConnectMesh(bool isContour);
 	void CountVertices();
 	void InitPairList();
-	void LinkVertices();
 	void InsertCreaseEdge();
-	void DeletePairList(int flag);
 	void SortVertices();
 	void LoopReduce(double rate, bool visual);
 	bool IsCollapseOK(MyMesh::HalfedgeHandle half);

@@ -75,33 +75,29 @@ int main()
 	face_vhandles.push_back(vhandle[6]);
 	mesh.add_face(face_vhandles);
 
-	// Now find the edge between vertex vhandle[2]
-	// and vhandle[3]
-	for (auto it = mesh.halfedges_begin(); it != mesh.halfedges_end(); ++it) {
-
-		if (mesh.to_vertex_handle(it.handle()) == vhandle[3] &&
-			mesh.from_vertex_handle(it.handle()) == vhandle[2]) {
-			cout << it.handle().idx() << endl;
-			// Collapse edge
-			mesh.request_halfedge_status();
-			mesh.request_vertex_status();
-			mesh.request_face_status();
-			mesh.request_edge_status();
-			if (mesh.is_collapse_ok(it.handle()))
-				mesh.collapse(it.handle());
-			break;
-		}
-	}
-
+	mesh.request_vertex_status();
+	mesh.request_halfedge_status();
+	mesh.request_face_status();
+	mesh.request_edge_status();
 	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
 	{
-		cout << i.handle().idx() << ":" << mesh.status(i).deleted() << endl;
-		if (i.handle().idx() == 4)
+		cout << i.handle().idx() << endl;
+		if (mesh.from_vertex_handle(i) == vhandle[3] && mesh.to_vertex_handle(i) == vhandle[2])
 		{
-			cout << "----------" << mesh.from_vertex_handle(i) << "->" << mesh.to_vertex_handle(i) << endl;
+			cout << "!" << endl;
+			if (mesh.is_collapse_ok(i))
+				mesh.collapse(i);
 		}
 	}
-	// Our mesh now looks like in the illustration above after the collapsing.
+	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
+	{
+		cout << i.handle().idx() << endl;
+		if (i.handle().idx() == 5)
+		{
+			bool t = mesh.is_collapse_ok(i);
+		}
+	}
+	mesh.release_vertex_status();
 	output(mesh);
 
 	system("pause");
