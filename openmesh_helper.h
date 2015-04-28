@@ -55,20 +55,25 @@ private:
 	IplImage *image;
 	MyMesh::VertexHandle **point_data;
 	bool exact = false;
+	double degree = 80;
+	double lambda = 0.5;
 	double num_vertices;
 	double num_all_vertices;
 
 	void InitPointData();
+	void ReSampleColor();
 	void ConnectMesh(bool isContour);
 	void CountVertices();
 	void InitPairList();
 	void InsertCreaseEdge();
+	void OptimizeColor();
 	void SortVertices();
 	void LoopReduce(double rate, bool visual);
 	bool IsCollapseOK(MyMesh::HalfedgeHandle half);
 	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info, double *x, double *y);
 	void CollapseEdge(MyMesh::HalfedgeHandle half);
 	void OptimizePosition();
+	bool IsBoundary(MyMesh::VertexHandle);
 public:
 	void Output(string output_location);
 	void ReduceVertices(double rate, bool visual);

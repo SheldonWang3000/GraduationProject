@@ -40,64 +40,50 @@ int main()
 {
 	MyMesh mesh;
 	// Add some vertices as in the illustration above
-	MyMesh::VertexHandle vhandle[7];
+	MyMesh::VertexHandle vhandle[5];
 
 	vhandle[0] = mesh.add_vertex(MyMesh::Point(-1, 1, 0));
-	vhandle[1] = mesh.add_vertex(MyMesh::Point(-1, 3, 0));
-	vhandle[2] = mesh.add_vertex(MyMesh::Point(0, 0, 0));
-	vhandle[3] = mesh.add_vertex(MyMesh::Point(0, 2, 0));
-	vhandle[4] = mesh.add_vertex(MyMesh::Point(0, 4, 0));
-	vhandle[5] = mesh.add_vertex(MyMesh::Point(1, 1, 0));
-	vhandle[6] = mesh.add_vertex(MyMesh::Point(1, 3, 0));
+	vhandle[1] = mesh.add_vertex(MyMesh::Point(-1, -1, 0));
+	vhandle[2] = mesh.add_vertex(MyMesh::Point(1, -1, 0));
+	vhandle[3] = mesh.add_vertex(MyMesh::Point(1, 1, 0));
+	vhandle[4] = mesh.add_vertex(MyMesh::Point(0, 0, 0));
 
 	// Add three quad faces
-	std::vector<MyMesh::VertexHandle> face_vhandles;
+	std::vector<MyMesh::VertexHandle> list;
 
-	face_vhandles.push_back(vhandle[1]);
-	face_vhandles.push_back(vhandle[0]);
-	face_vhandles.push_back(vhandle[2]);
-	face_vhandles.push_back(vhandle[3]);
-	mesh.add_face(face_vhandles);
+	list.push_back(vhandle[0]);
+	list.push_back(vhandle[1]);
+	list.push_back(vhandle[4]);
+	mesh.add_face(list);
 
-	face_vhandles.clear();
+	list.clear();
+	list.push_back(vhandle[1]);
+	list.push_back(vhandle[2]);
+	list.push_back(vhandle[4]);
+	mesh.add_face(list);
 
-	face_vhandles.push_back(vhandle[1]);
-	face_vhandles.push_back(vhandle[3]);
-	face_vhandles.push_back(vhandle[6]);
-	face_vhandles.push_back(vhandle[4]);
-	mesh.add_face(face_vhandles);
+	list.clear();
+	list.push_back(vhandle[2]);
+	list.push_back(vhandle[3]);
+	list.push_back(vhandle[4]);
+	mesh.add_face(list);
 
-	face_vhandles.clear();
+	list.clear();
+	list.push_back(vhandle[3]);
+	list.push_back(vhandle[0]);
+	list.push_back(vhandle[4]);
+	mesh.add_face(list);
 
-	face_vhandles.push_back(vhandle[3]);
-	face_vhandles.push_back(vhandle[2]);
-	face_vhandles.push_back(vhandle[5]);
-	face_vhandles.push_back(vhandle[6]);
-	mesh.add_face(face_vhandles);
-
-	mesh.request_vertex_status();
-	mesh.request_halfedge_status();
-	mesh.request_face_status();
-	mesh.request_edge_status();
-	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
+	set<MyMesh::VertexHandle> set;
+	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
 	{
-		cout << i.handle().idx() << endl;
-		if (mesh.from_vertex_handle(i) == vhandle[3] && mesh.to_vertex_handle(i) == vhandle[2])
+		for (auto j = mesh.vv_begin(i); j != mesh.vv_end(i); ++j)
 		{
-			cout << "!" << endl;
-			if (mesh.is_collapse_ok(i))
-				mesh.collapse(i);
+			set.insert(j);
 		}
 	}
-	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
-	{
-		cout << i.handle().idx() << endl;
-		if (i.handle().idx() == 5)
-		{
-			bool t = mesh.is_collapse_ok(i);
-		}
-	}
-	mesh.release_vertex_status();
+	
+	cout << set.size() << endl;
 	output(mesh);
 
 	system("pause");

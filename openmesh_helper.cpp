@@ -255,8 +255,8 @@ void OpenmeshHelper::SortVertices()
 	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
 	{
 		int crease = 0; 
-		int x = mesh.point(i.handle()).data()[0];
-		int y = mesh.point(i.handle()).data()[1];
+		double x = mesh.point(i).data()[0];
+		double y = mesh.point(i).data()[1];
 		if ((x == 0 && y == 0) || (x == 0 & y == image->height - 1)
 			|| (x == image->width - 1 && y == 0) || (x == image->width - 1 && y == image->height - 1))
 		{
@@ -267,7 +267,7 @@ void OpenmeshHelper::SortVertices()
 		}
 		for (auto it = mesh.voh_iter(i); it; ++it)
 		{
-			auto position = find(crease_list.begin(), crease_list.end(), it.handle());
+			auto position = find(crease_list.begin(), crease_list.end(), it);
 			int id = it.handle().idx();
 			if (position != crease_list.end())
 			{
@@ -294,17 +294,6 @@ void OpenmeshHelper::SortVertices()
 		mesh.set_texcoord3D(i, t);
 	}
 	
-	ofstream outfile("D:/type.txt");
-	for (int i = 0; i != image->height; ++i)
-	{
-		for (int j = 0; j != image->width; ++j)
-		{
-			auto t = mesh.texcoord3D(point_data[i][j]);
-			outfile << t[2] << ' ';
-		}
-		outfile << endl;
-	}
-	outfile.close();
 	cout << "sort complete" << endl;
 }
 //************************************
@@ -539,20 +528,19 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 	mesh.request_vertex_texcoords3D();
 	InitPointData();
 	ConnectMesh(true);
-	Output("D:/pure.off");
 	InsertCreaseEdge();
-		
+
 	CountVertices();
 	SortVertices();
 	InitPairList();
-	
+
 	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
 	{
 		int x = mesh.point(i.handle()).data()[0];
 		int y = mesh.point(i.handle()).data()[1];
 		control_list.push_back(point_data[x][y]);
 	}
-	
+
 	LoopReduce(rate, visual);
 	vector<MyMesh::HalfedgeHandle> temp_crease_list;
 	for (int i = 0; i != crease_list.size(); ++i)
@@ -605,7 +593,8 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 
 	Output("D:/before.off");
 	OptimizePosition();
-	
+	ReSampleColor();
+	OptimizeColor();
 	mesh.release_vertex_colors();
 	mesh.release_vertex_texcoords3D();
 	mesh.release_edge_status();
@@ -619,8 +608,7 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 // Method:    IsCollapseOK
 // FullName:  OpenmeshHelper::IsCollapseOK
 // Access:    private 
-// Returns:   bool
-// Qualifier:
+// Returns:   bool // Qualifier:
 // Parameter: MyMesh::HalfedgeHandle half
 // 用于判断collapse之后的面是否会出现翻转的现象，在collapse之前执行
 //************************************
@@ -636,17 +624,50 @@ bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
 	double x1 = mesh.point(info.v1).data()[0];
 	double y1 = mesh.point(info.v1).data()[1];
 
+	
+	set<MyMesh::VertexHandle> remain_set;
+	for (auto i = mesh.vv_begin(info.v0); i != mesh.vv_end(info.v0); ++i)
+	{
+		remain_set.insert(i);
+	}
+	for (auto i = mesh.vv_begin(info.v1); i != mesh.vv_end(info.v1); ++i)
+	{
+		remain_set.insert(i);
+	}
+	remain_set.erase(info.v0);
+	remain_set.erase(info.v1);
+	bool remain_boundary = IsBoundary(info.v1);
+	bool remove_boundary = IsBoundary(info.v0);
+	if (!remove_boundary && !remain_boundary)
+	{
+		if (remain_set.size() < 3 || remain_set.size() > 9)
+			return false;
+	}
+	else
+	{
+		if (remain_set.size() < 2 || remain_set.size() > 7)
+			return false;
+	}
 	mesh.point(info.v0).data()[0] = x;
 	mesh.point(info.v0).data()[1] = y;
-	
 	for (auto i = mesh.vf_begin(info.v0); i != mesh.vf_end(info.v0); ++i)
 	{
-		auto normals = mesh.calc_face_normal(i.handle());
+		auto normals = mesh.calc_face_normal(i);
 		if (normals.data()[2] < 0)
 		{
 			mesh.point(info.v0).data()[0] = x0;
 			mesh.point(info.v0).data()[1] = y0;
 			return false;
+		}
+		for (auto j = mesh.fh_begin(i); j != mesh.fh_end(i); ++j)
+		{
+			double angle = mesh.calc_sector_angle(j) * 180 / M_PI;
+			if (abs(angle - 60) > degree)
+			{
+				mesh.point(info.v0).data()[0] = x0;
+				mesh.point(info.v0).data()[1] = y0;
+				return false;
+			}
 		}
 	}
 	mesh.point(info.v0).data()[0] = x0;
@@ -663,6 +684,16 @@ bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
 			mesh.point(info.v1).data()[0] = x1;
 			mesh.point(info.v1).data()[1] = y1;
 			return false;
+		}
+		for (auto j = mesh.fh_begin(i); j != mesh.fh_end(i); ++j)
+		{
+			double angle = mesh.calc_sector_angle(j) * 180 / M_PI;
+			if (abs(angle - 60) > degree)
+			{
+				mesh.point(info.v1).data()[0] = x1;
+				mesh.point(info.v1).data()[1] = y1;
+				return false;
+			}
 		}
 	}
 
@@ -724,8 +755,8 @@ void OpenmeshHelper::LoopReduce(double rate, bool visual)
 			}
 			if (visual)
 			{
-				int size = point_pair_list.size();
-				cout << size << endl;
+			
+				cout << num_vertices << endl;
 			}
 				//cout << num_vertices / num_all_vertices << endl;
 		}
@@ -746,60 +777,90 @@ void OpenmeshHelper::LoopReduce(double rate, bool visual)
 
 void OpenmeshHelper::OptimizePosition()
 {
+	SortVertices();
+	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
+	{
+		double x = 0;
+		double y = 0;
+		int num = 0;
+		auto t = mesh.texcoord3D(i);
+		if (t[2] == Corner)
+		{
+			continue;
+		}
+		if (t[2] == Crease)
+		{
+			for (auto j = mesh.vv_begin(i); j != mesh.vv_end(i); ++j)
+			{
+				if (mesh.texcoord3D(j)[2] == Crease)
+				{
+					++num;
+					x += abs(mesh.point(i).data()[0] - mesh.point(j).data()[0]);
+					y += abs(mesh.point(i).data()[1] - mesh.point(j).data()[1]);
+				}
+			}
+		}
+		if (mesh.point(i).data()[0] == 0 || mesh.point(i).data()[0] == image->height - 1
+			|| mesh.point(i).data()[1] == 0 || mesh.point(i).data()[1] == image->width - 1)
+		{
+			x = 0;
+			y = 0;
+			for (auto j = mesh.vv_begin(i); j != mesh.vv_end(i); ++j)
+			{
+				if ((mesh.point(i).data()[0] - mesh.point(j).data()[0]) * 
+					(mesh.point(i).data()[1] - mesh.point(j).data()[1]) == 0)
+				{
+					++num;
+					x += abs(mesh.point(i).data()[0] - mesh.point(j).data()[0]);
+					y += abs(mesh.point(i).data()[1] - mesh.point(j).data()[1]);
+				}
+			}
+		}
+		if (t[2] == Smooth)
+		{
+			for (auto j = mesh.vv_begin(i); j != mesh.vv_end(i); ++j)
+			{
+				++num;
+				x += abs(mesh.point(i).data()[0] - mesh.point(j).data()[0]);
+				y += abs(mesh.point(i).data()[1] - mesh.point(j).data()[1]);
+			}
+		}
+		double temp_x = mesh.point(i).data()[0];
+		double temp_y = mesh.point(i).data()[1];
+		if (x != 0 && y != 0)
+		{
+			mesh.point(i).data()[0] += lambda * x / num;
+			mesh.point(i).data()[1] += lambda * y / num;
+		}
+		for (auto j = mesh.vf_begin(i); j != mesh.vf_end(i); ++j)
+		{
+			auto normals = mesh.calc_face_normal(j);
+			if (normals.data()[2] < 0)
+			{
+				mesh.point(i).data()[0] = temp_x;
+				mesh.point(i).data()[1] = temp_y;
+				break;
+			}
+		}
+
+	}
+}
+void OpenmeshHelper::OptimizeColor()
+{
 	control_list.clear();
 	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
 	{
 		control_list.push_back(i);
-
-		double x = mesh.point(i).data()[0];
-		double y = mesh.point(i).data()[1];
-		if ((x == 0 && y == 0) || (x == 0 & y == image->height - 1)
-			|| (x == image->width - 1 && y == 0) || (x == image->width - 1 && y == image->height - 1))
-		{
-			auto t = mesh.texcoord3D(i);
-			t[2] = Corner;
-			mesh.set_texcoord3D(i, t);
-		}
-		int crease = 0;
-		for (auto it = mesh.voh_iter(i.handle()); it; ++it)
-		{
-			auto position = find(crease_list.begin(), crease_list.end(), it.handle());
-			if (position != crease_list.end())
-			{
-				++crease;
-			}
-		}
-
-		if (crease == 0)
-		{
-			auto t = mesh.texcoord3D(i);
-			t[2] = Smooth;
-			mesh.set_texcoord3D(i, t);
-		}
-		
-		if (crease == 2)
-		{
-			auto t = mesh.texcoord3D(i);
-			t[2] = Crease;
-			mesh.set_texcoord3D(i, t);
-		}
-		if (crease != 2 && crease != 0)
-		{
-			auto t = mesh.texcoord3D(i);
-			t[2] = Corner;
-			mesh.set_texcoord3D(i, t);
-		}
-		
 	}
 
 	Eigen::MatrixXf X, Y;
 	if (exact)
 	{
-		X = Eigen::MatrixXf::Zero(1, control_list.size() * 2);
+		X = Eigen::MatrixXf::Zero(1, control_list.size() * 3);
 	}
 	else
 	{
-		X = Eigen::MatrixXf::Zero(2, control_list.size());
+		X = Eigen::MatrixXf::Zero(3, control_list.size());
 	}
 	Y = Eigen::MatrixXf::Zero(control_list.size(), control_list.size());
 	for (int i = 0; i != control_list.size(); ++ i)
@@ -808,14 +869,17 @@ void OpenmeshHelper::OptimizePosition()
 		int x = mesh.point(control_list[i]).data()[0];
 		int y = mesh.point(control_list[i]).data()[1];
 		auto t = mesh.texcoord3D(control_list[i]);
-		X(0, i) = t[0];
+		auto color = mesh.color(control_list[i]);
+		X(0, i) = color[0];
 		if (exact)
 		{
-			X(0, i + control_list.size()) = t[1];
+			X(0, i + control_list.size()) = color[1];
+			X(0, i + 2 * control_list.size()) = color[2];
 		}
 		else
 		{
-			X(1, i) = t[1];
+			X(1, i) = color[1];
+			X(2, i) = color[2];
 		}
 		
 		//处理Y
@@ -827,19 +891,13 @@ void OpenmeshHelper::OptimizePosition()
 		if (t[2] == Crease)
 		{
 			Y(i, i) = 4.0 / 6;
-			int times = 0;
 			for (auto j = mesh.voh_begin(control_list[i]); j != mesh.voh_end(control_list[i]); ++j)
 			{
 				auto position = find(crease_list.begin(), crease_list.end(), j.handle());
 				if (position != crease_list.end())
 				{
-					++times;
 					Y(i, mesh.to_vertex_handle(j).idx()) = 1.0 / 6;
 				}
-			}
-			if (times != 2)
-			{
-				cout << times << endl;
 			}
 			continue;
 		}
@@ -903,7 +961,7 @@ void OpenmeshHelper::OptimizePosition()
 	if (exact)
 	{
 		Eigen::MatrixXf YY;
-		YY = Eigen::MatrixXf::Zero(2 * control_list.size(), 2 * control_list.size());
+		YY = Eigen::MatrixXf::Zero(3 * control_list.size(), 3 * control_list.size());
 		for (int i = 0; i != control_list.size(); ++i)
 		{
 			for (int j = 0; j != control_list.size(); ++j)
@@ -915,50 +973,84 @@ void OpenmeshHelper::OptimizePosition()
 				}
 				YY(i, j) = Y(i, j);
 				YY(i + control_list.size(), j + control_list.size()) = Y(i, j);
+				YY(i + 2 * control_list.size(), j + 2 * control_list.size()) = Y(i, j);
 			}
 		}
-		ofstream parameter("D:/parameter_matrix.txt");
-		for (int i = 0; i != 2 * control_list.size(); ++i)
-		{
-			for (int j = 0; j != 2 * control_list.size(); ++j)
-			{
-				parameter << YY(i, j) << ' ';
-			}
-			parameter << endl;
-		}
-		cout << "parameter output" << endl;
 		Eigen::MatrixXf optimize = YY.colPivHouseholderQr().solve(X.transpose());
-		ofstream optimizeOut("D:/optimize.txt");
 		for (int i = 0; i != control_list.size(); ++i)
 		{
-			optimizeOut << optimize(i, 0) << "," << optimize(i + control_list.size(), 0) << endl;
-			mesh.point(control_list[i]).data()[0] = optimize(i, 0);
-			mesh.point(control_list[i]).data()[1] = optimize(i + control_list.size(), 0);
+			auto color = mesh.color(control_list[i]);
+			color[0] = optimize(i, 0);
+			color[1] = optimize(i + control_list.size(), 0);
+			color[2] = optimize(i + 2 * control_list.size(), 0);
+			mesh.set_color(control_list[i], color);
 		}
-		optimizeOut.close();
 	}
 	else
 	{
-		ofstream parameter("D:/parameter_matrix.txt");
-		for (int i = 0; i != control_list.size(); ++i)
-		{
-			for (int j = 0; j != control_list.size(); ++j)
-			{
-				parameter << Y(i, j) << ' ';
-			}
-			parameter << endl;
-		}
-		cout << "parameter output" << endl;
 		Eigen::MatrixXf optimize = Y.colPivHouseholderQr().solve(X.transpose());
-		ofstream optimizeOut("D:/optimize.txt");
 		for (int i = 0; i != control_list.size(); ++i)
 		{
-			optimizeOut << optimize(i, 0) << "," << optimize(i, 1) << endl;
-			mesh.point(control_list[i]).data()[0] = optimize(i, 0);
-			mesh.point(control_list[i]).data()[1] = optimize(i, 1);
+			auto color = mesh.color(control_list[i]);
+			color[0] = optimize(i, 0);
+			color[1] = optimize(i, 1);
+			color[2] = optimize(i, 2);
+			mesh.set_color(control_list[i], color);
 		}
-		optimizeOut.close();
 	}
 	
 
+}
+
+bool OpenmeshHelper::IsBoundary(MyMesh::VertexHandle point)
+{
+	vector<MyMesh::VertexHandle> out_point_list;
+	for (auto i = mesh.vv_begin(point); i != mesh.vv_end(point); ++i)
+	{
+		out_point_list.push_back(i);
+	}
+	
+	for (auto i = mesh.vv_begin(point); i != mesh.vv_end(point); ++i)
+	{
+		int times = 0;
+		for (auto j = mesh.vv_begin(i); j != mesh.vv_end(i); ++j)
+		{
+			auto find_position = find(out_point_list.begin(), out_point_list.end(), j);
+			if (find_position != out_point_list.end())
+			{
+				++times;
+			}
+	
+		}
+		if (times != 2)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void OpenmeshHelper::ReSampleColor()
+{
+	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
+	{
+		double real_x = mesh.point(i).data()[0];
+		double real_y = mesh.point(i).data()[1];
+		double x = real_x - (int)real_x;
+		double y = real_y - (int)real_y;
+		auto color00 = cvGet2D(image, x, y);
+		auto color01 = cvGet2D(image, x, y + 1);
+		auto color10 = cvGet2D(image, x + 1, y);
+		auto color11 = cvGet2D(image, x + 1, y + 1);
+
+		MyMesh::Color color;
+		for (int j = 0; j != 3; ++j)
+		{
+			color[j] = color00.val[j] * (1 - x) * (1 - y) 
+				+ color10.val[j] * x * (1 - y)
+				+ color01.val[j] * y * (1 - x)
+				+ color11.val[j] * x * y;
+		}
+		mesh.set_color(i, color);
+	}
 }
