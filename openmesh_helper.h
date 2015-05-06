@@ -48,14 +48,15 @@ private:
 	vector<MyMesh::VertexHandle> control_list;
 	vector<MyMesh::HalfedgeHandle> tear_list;
 	vector<MyMesh::HalfedgeHandle> crease_list;
-	map<Position, MyMesh::VertexHandle> control_map;
+	map<Position, MyMesh::VertexHandle> vertex_map;
 	multimap<Position, Position> tear_map;
 	multimap<Position, Position> crease_map;
 	MyMesh mesh;
 	IplImage *image;
 	MyMesh::VertexHandle **point_data;
 	bool exact = false;
-	double degree = 80;
+	double degree = 100;
+	int zoom = 2;
 	double lambda = 0.5;
 	double num_vertices;
 	double num_all_vertices;
@@ -66,16 +67,20 @@ private:
 	void CountVertices();
 	void InitPairList();
 	void InsertCreaseEdge();
+	MyMesh::VertexHandle InsertVertex(MyMesh&, MyMesh::HalfedgeHandle);
 	void OptimizeColor();
 	void SortVertices();
+	void SubDivision();
 	void LoopReduce(double rate, bool visual);
 	bool IsCollapseOK(MyMesh::HalfedgeHandle half);
 	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info, double *x, double *y);
 	void CollapseEdge(MyMesh::HalfedgeHandle half);
 	void OptimizePosition();
+	void RebuildCreaseList(MyMesh);
+	void OutputImage();
 	bool IsBoundary(MyMesh::VertexHandle);
 public:
-	void Output(string output_location);
+	void Output(MyMesh, string);
 	void ReduceVertices(double rate, bool visual);
 
 	OpenmeshHelper(string input_location);

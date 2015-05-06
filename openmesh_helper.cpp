@@ -58,7 +58,7 @@ void OpenmeshHelper::InitPointData()
 			MyMesh::Color vertex_color;
 			for (int k = 0; k != 3; ++k)
 			{
-				vertex_color[k] = color.val[k];
+				vertex_color[k] = (int)color.val[k];
 			}
 			mesh.set_color(point, vertex_color);
 			if (data[i * step + j] == 255)
@@ -252,13 +252,15 @@ void OpenmeshHelper::InitPairList()
 }
 void OpenmeshHelper::SortVertices()
 {
+	int id = 0;
 	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
 	{
+		//cout << id++ << endl;
 		int crease = 0; 
 		double x = mesh.point(i).data()[0];
 		double y = mesh.point(i).data()[1];
-		if ((x == 0 && y == 0) || (x == 0 & y == image->height - 1)
-			|| (x == image->width - 1 && y == 0) || (x == image->width - 1 && y == image->height - 1))
+		if ((x == 0 && y == 0) || (x == 0 & y == image->width - 1)
+			|| (x == image->height - 1 && y == 0) || (x == image->height - 1 && y == image->width- 1))
 		{
 			auto t = mesh.texcoord3D(i);
 			t[2] = Corner;
@@ -304,11 +306,11 @@ void OpenmeshHelper::SortVertices()
 // Qualifier:
 // Parameter: string output_location 输出的位置
 //************************************
-void OpenmeshHelper::Output(string output_location)
+void OpenmeshHelper::Output(MyMesh output_mesh, string output_location)
 {
 	try
 	{
-		if (!OpenMesh::IO::write_mesh(mesh, output_location))
+		if (!OpenMesh::IO::write_mesh(output_mesh, output_location))
 		{
 			std::cerr << "Cannot write mesh to " + output_location << std::endl;
 			return;
@@ -449,8 +451,6 @@ void OpenmeshHelper::CollapseEdge(MyMesh::HalfedgeHandle half)
 	mesh.point(info.v1).data()[1] = y;
 	//调整点的颜色
 	
-	auto remove_color = mesh.color(remove);
-	auto remain_color = mesh.color(remain);
 	MyMesh::Color temp_color;
 	for (int k = 0; k < 3; ++k)
 	{
@@ -562,28 +562,23 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 		crease_map.insert(make_pair(from, to));
 	}
 
-	mesh.garbage_collection();
-	crease_list.clear();
-
-	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
+	ofstream crease_out("D:/crease.txt");
+	for (auto i = crease_map.begin(); i != crease_map.end(); ++i)
 	{
-		Position from, to;
-		from.x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
-		from.y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
-		to.x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
-		to.y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
-
-		for (auto k = crease_map.lower_bound(from); k != crease_map.upper_bound(from); ++k)
-		{
-			if (k->second == to)
-			{
-				auto position = find(crease_list.begin(), crease_list.end(), i.handle());
-				if (position == crease_list.end())
-					crease_list.push_back(i.handle());
-				break;
-			}
-		}
+		crease_out << i->first.x << ' ' << i->first.y << ' ' << i->second.x << " " << i->second.y << endl;
 	}
+	crease_out.close();
+	cout << "Crease Output Complete" << endl;
+	mesh.garbage_collection();
+	//OpenMesh::IO::read_mesh(mesh, "D:/before.off");
+	//ifstream input("D:/crease.txt");
+	//Position from, to;
+	//while (input >> from.x >> from.y >> to.x >> to.y)
+	//{
+	//	crease_map.insert(make_pair(from, to));
+	//}
+	//input.close();
+	//RebuildCreaseList(mesh);
 	mesh.request_face_normals();
 	mesh.request_vertex_normals();
 	mesh.update_vertex_normals();
@@ -591,10 +586,20 @@ void OpenmeshHelper::ReduceVertices(double rate, bool visual)
 	mesh.release_face_normals();
 	mesh.release_vertex_normals();
 
-	Output("D:/before.off");
+	Output(mesh, "D:/before.off");
 	OptimizePosition();
 	ReSampleColor();
 	OptimizeColor();
+	Output(mesh, "D:/origin.off");
+	CountVertices();
+	while (num_all_vertices < image->width * zoom * image->height * zoom)
+	{
+		SubDivision();
+		SortVertices();
+		CountVertices();
+		cout << num_all_vertices << endl;
+	}
+	OutputImage();
 	mesh.release_vertex_colors();
 	mesh.release_vertex_texcoords3D();
 	mesh.release_edge_status();
@@ -640,12 +645,12 @@ bool OpenmeshHelper::IsCollapseOK(MyMesh::HalfedgeHandle half)
 	bool remove_boundary = IsBoundary(info.v0);
 	if (!remove_boundary && !remain_boundary)
 	{
-		if (remain_set.size() < 3 || remain_set.size() > 9)
+		if (remain_set.size() < 4 || remain_set.size() > 8)
 			return false;
 	}
 	else
 	{
-		if (remain_set.size() < 2 || remain_set.size() > 7)
+		if (remain_set.size() < 3 || remain_set.size() > 5)
 			return false;
 	}
 	mesh.point(info.v0).data()[0] = x;
@@ -780,6 +785,7 @@ void OpenmeshHelper::OptimizePosition()
 	SortVertices();
 	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
 	{
+		int id = i.handle().idx();
 		double x = 0;
 		double y = 0;
 		int num = 0;
@@ -800,22 +806,6 @@ void OpenmeshHelper::OptimizePosition()
 				}
 			}
 		}
-		if (mesh.point(i).data()[0] == 0 || mesh.point(i).data()[0] == image->height - 1
-			|| mesh.point(i).data()[1] == 0 || mesh.point(i).data()[1] == image->width - 1)
-		{
-			x = 0;
-			y = 0;
-			for (auto j = mesh.vv_begin(i); j != mesh.vv_end(i); ++j)
-			{
-				if ((mesh.point(i).data()[0] - mesh.point(j).data()[0]) * 
-					(mesh.point(i).data()[1] - mesh.point(j).data()[1]) == 0)
-				{
-					++num;
-					x += abs(mesh.point(i).data()[0] - mesh.point(j).data()[0]);
-					y += abs(mesh.point(i).data()[1] - mesh.point(j).data()[1]);
-				}
-			}
-		}
 		if (t[2] == Smooth)
 		{
 			for (auto j = mesh.vv_begin(i); j != mesh.vv_end(i); ++j)
@@ -825,6 +815,59 @@ void OpenmeshHelper::OptimizePosition()
 				y += abs(mesh.point(i).data()[1] - mesh.point(j).data()[1]);
 			}
 		}
+		if (mesh.point(i).data()[0] == 0 || mesh.point(i).data()[0] == image->height - 1
+			|| mesh.point(i).data()[1] == 0 || mesh.point(i).data()[1] == image->width - 1)
+		//if (t[2] == Edge)
+		{
+			x = 0;
+			y = 0;
+			num = 0;
+			for (auto j = mesh.vv_begin(i); j != mesh.vv_end(i); ++j)
+			{
+				double x1 = mesh.point(i).data()[0];
+				double y1 = mesh.point(i).data()[1];
+				double xx = mesh.point(j).data()[0];
+				double yy = mesh.point(j).data()[1];
+				if (mesh.point(i).data()[0] == 0)
+				{
+					if (mesh.point(j).data()[0] == 0)
+					{
+						x += abs(mesh.point(i).data()[0] - mesh.point(j).data()[0]);
+						y += abs(mesh.point(i).data()[1] - mesh.point(j).data()[1]);
+						continue;
+					}
+				}
+				if (mesh.point(i).data()[1] == 0)
+				{
+					if (mesh.point(j).data()[1] == 0)
+					{
+						x += abs(mesh.point(i).data()[0] - mesh.point(j).data()[0]);
+						y += abs(mesh.point(i).data()[1] - mesh.point(j).data()[1]);
+						continue;
+					}
+				}
+				if (mesh.point(i).data()[0] == image->height - 1)
+				{
+					if (mesh.point(j).data()[0] == image->height - 1)
+					{
+						x += abs(mesh.point(i).data()[0] - mesh.point(j).data()[0]);
+						y += abs(mesh.point(i).data()[1] - mesh.point(j).data()[1]);
+						continue;
+					}
+				}
+				if (mesh.point(i).data()[1] == image->width - 1)
+				{
+					if (mesh.point(j).data()[1] == image->width - 1)
+					{
+						x += abs(mesh.point(i).data()[0] - mesh.point(j).data()[0]);
+						y += abs(mesh.point(i).data()[1] - mesh.point(j).data()[1]);
+						continue;
+					}
+				}
+
+			}
+		}
+		
 		double temp_x = mesh.point(i).data()[0];
 		double temp_y = mesh.point(i).data()[1];
 		if (x != 0 && y != 0)
@@ -842,7 +885,6 @@ void OpenmeshHelper::OptimizePosition()
 				break;
 			}
 		}
-
 	}
 }
 void OpenmeshHelper::OptimizeColor()
@@ -1038,19 +1080,453 @@ void OpenmeshHelper::ReSampleColor()
 		double real_y = mesh.point(i).data()[1];
 		double x = real_x - (int)real_x;
 		double y = real_y - (int)real_y;
-		auto color00 = cvGet2D(image, x, y);
-		auto color01 = cvGet2D(image, x, y + 1);
-		auto color10 = cvGet2D(image, x + 1, y);
-		auto color11 = cvGet2D(image, x + 1, y + 1);
+		int xx = real_x;
+		int yy = real_y;
+		if (xx == image->height - 1)
+		{
+			if (yy == image->width - 1)
+			{
+				auto color_image = cvGet2D(image, xx, yy);
+				MyMesh::Color color;
+				for (int i = 0; i != 3; ++i)
+				{
+					color[i] = (int)color_image.val[i];
+				}
+				mesh.set_color(i, color);
+				continue;
+			}
+			else
+			{
+				auto color1 = cvGet2D(image, xx, yy);
+				auto color2 = cvGet2D(image, xx, yy + 1);
+				MyMesh::Color color;
+				for (int i = 0; i != 3; ++i)
+				{
+					color[i] = (int)((color1.val[i] + color2.val[i]) / 2);
+				}
+				mesh.set_color(i, color);
+				continue;
+			}
+		}
+		if (yy == image->width - 1)
+		{
+			auto color1 = cvGet2D(image, xx, yy);
+			auto color2 = cvGet2D(image, xx + 1, yy);
+			MyMesh::Color color;
+			for (int i = 0; i != 3; ++i)
+			{
+				color[i] = (int)((color1.val[i] + color2.val[i]) / 2);
+			}
+			mesh.set_color(i, color);
+			continue;
+		}
+		auto color00 = cvGet2D(image, xx, yy);
+		auto color01 = cvGet2D(image, xx, yy + 1);
+		auto color10 = cvGet2D(image, xx + 1, yy);
+		auto color11 = cvGet2D(image, xx + 1, yy + 1);
 
 		MyMesh::Color color;
 		for (int j = 0; j != 3; ++j)
 		{
-			color[j] = color00.val[j] * (1 - x) * (1 - y) 
+			color[j] = (int)(color00.val[j] * (1 - x) * (1 - y) 
 				+ color10.val[j] * x * (1 - y)
 				+ color01.val[j] * y * (1 - x)
-				+ color11.val[j] * x * y;
+				+ color11.val[j] * x * y);
 		}
 		mesh.set_color(i, color);
 	}
+	ofstream out("D:/color.txt");
+	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
+	{
+		out << mesh.color(i).data()[0] << ' ' << mesh.color(i).data()[1] << ' ' << mesh.color(i).data()[2] << endl;
+	}
+	out.close();
+	cout << "Color Complete" << endl;
 }
+
+void OpenmeshHelper::SubDivision()
+{
+	MyMesh subdivision_mesh;
+	subdivision_mesh.request_vertex_colors();
+	subdivision_mesh.request_vertex_status();
+	subdivision_mesh.request_edge_status();
+	subdivision_mesh.request_face_status();
+	subdivision_mesh.request_halfedge_status();
+	subdivision_mesh.request_vertex_texcoords3D();
+	crease_map.clear();
+	vertex_map.clear();
+	int id = 0;
+	for (auto i = mesh.faces_begin(); i != mesh.faces_end(); ++i)
+	{
+		//cout << id++ << endl;
+		MyMesh::VertexHandle face_vertex[6];
+		MyMesh::VertexHandle old_vertex[3];
+		int j = 0;
+		for (auto k = mesh.fv_begin(i); k != mesh.fv_end(i); ++k)
+		{
+			Position p;
+			p.x = mesh.point(k).data()[0];
+			p.y = mesh.point(k).data()[1];
+			if (vertex_map[p].idx() == -1)
+			{
+				vertex_map[p] = subdivision_mesh.add_vertex(MyMesh::Point(p.x, p.y, 0));
+				subdivision_mesh.set_color(vertex_map[p], mesh.color(k));
+			}
+			face_vertex[j++] = vertex_map[p];
+			old_vertex[j - 1] = k.handle();
+		}
+		for (auto k = mesh.fh_begin(i); k != mesh.fh_end(i); ++k)
+		{
+			if ((mesh.from_vertex_handle(k) == old_vertex[0] &&
+				mesh.to_vertex_handle(k) == old_vertex[1]) ||
+				(mesh.to_vertex_handle(k) == old_vertex[0] &&
+				mesh.from_vertex_handle(k) == old_vertex[1]))
+			{
+				face_vertex[3] = InsertVertex(subdivision_mesh, k);
+			}
+			if ((mesh.from_vertex_handle(k) == old_vertex[1] &&
+				mesh.to_vertex_handle(k) == old_vertex[2]) ||
+				(mesh.to_vertex_handle(k) == old_vertex[1] &&
+				mesh.from_vertex_handle(k) == old_vertex[2]))
+			{
+				face_vertex[4] = InsertVertex(subdivision_mesh, k);
+			}
+			if ((mesh.from_vertex_handle(k) == old_vertex[2] &&
+				mesh.to_vertex_handle(k) == old_vertex[0]) ||
+				(mesh.to_vertex_handle(k) == old_vertex[2] &&
+				mesh.from_vertex_handle(k) == old_vertex[0]))
+			{
+				face_vertex[5] = InsertVertex(subdivision_mesh, k);
+			}
+		}
+		vector<MyMesh::VertexHandle> list;
+		list.push_back(face_vertex[0]);
+		list.push_back(face_vertex[3]);
+		list.push_back(face_vertex[5]);
+		subdivision_mesh.add_face(list);
+
+		list.clear();
+		list.push_back(face_vertex[3]);
+		list.push_back(face_vertex[1]);
+		list.push_back(face_vertex[4]);
+		subdivision_mesh.add_face(list);
+
+		list.clear();
+		list.push_back(face_vertex[5]);
+		list.push_back(face_vertex[4]);
+		list.push_back(face_vertex[2]);
+		subdivision_mesh.add_face(list);
+		
+		list.clear();
+		list.push_back(face_vertex[3]);
+		list.push_back(face_vertex[4]);
+		list.push_back(face_vertex[5]);
+		subdivision_mesh.add_face(list);
+	}
+	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
+	{
+		int x = mesh.point(i).data()[0];
+		int y = mesh.point(i).data()[1];
+		auto t = mesh.texcoord3D(i);
+		if (x == 0 || y == 0 || x == image->height - 1 || y == image->width - 1)
+		{
+			continue;
+		}
+		if (t[2] == Corner)
+		{
+			continue;
+		}
+		if (t[2] == Crease)
+		{
+			double temp_x = 0.75 * mesh.point(i).data()[0];
+			double temp_y = 0.75 * mesh.point(i).data()[1];
+			for (auto j = mesh.voh_begin(i); j != mesh.voh_end(i); ++j)
+			{
+				auto position = find(crease_list.begin(), crease_list.end(), j.handle());
+				if (position != crease_list.end())
+				{
+					temp_x += 0.125 * mesh.point(mesh.to_vertex_handle(j)).data()[0];
+					temp_y += 0.125 * mesh.point(mesh.to_vertex_handle(j)).data()[1];
+				}
+			}
+			Position position;
+			position.x = mesh.point(i).data()[0];
+			position.y = mesh.point(i).data()[1];
+			subdivision_mesh.point(vertex_map[position]).data()[0] = temp_x;
+			subdivision_mesh.point(vertex_map[position]).data()[1] = temp_y;
+			continue;
+		}
+		auto point = i;
+		int valence = 0;
+		vector<MyMesh::VertexHandle> out_point_list;
+		out_point_list.push_back(point);
+		for (auto j = mesh.vv_begin(point); j != mesh.vv_end(point); ++j)
+		{
+			++valence;
+			out_point_list.push_back(j);
+		}
+		bool is_boundary = false;
+		MyMesh::VertexHandle boundary[2];
+		for (int j = 1; j != out_point_list.size(); ++j)
+		{
+			int times = 0;
+			for (auto k = mesh.vv_begin(out_point_list[j]); k != mesh.vv_end(out_point_list[j]); ++k)
+			{
+				auto find_position = find(out_point_list.begin(), out_point_list.end(), k);
+				if (find_position != out_point_list.end())
+				{
+					++times;
+				}
+			}
+			if (times != 3)
+			{
+				if (!is_boundary)
+				{
+					is_boundary = true;
+					boundary[0] = out_point_list[j];
+				}
+				else
+				{
+					boundary[1] = out_point_list[j];
+					break;
+				}
+
+			}
+
+		}
+		if (is_boundary)
+		{
+			double temp_x = 0.75 * mesh.point(i).data()[0];
+			double temp_y = 0.75 * mesh.point(i).data()[1];
+			temp_x += 0.125 * mesh.point(boundary[0]).data()[0];
+			temp_y += 0.125 * mesh.point(boundary[0]).data()[1];
+			temp_x += 0.125 * mesh.point(boundary[1]).data()[0];
+			temp_y += 0.125 * mesh.point(boundary[1]).data()[1];
+			Position p;
+			p.x = mesh.point(i).data()[0];
+			p.y = mesh.point(i).data()[1];
+			subdivision_mesh.point(vertex_map[p]).data()[0] = temp_x;
+			subdivision_mesh.point(vertex_map[p]).data()[1] = temp_y;
+		}
+		else
+		{
+			double alpha = 0.625 - pow(0.375 + 0.25 * cos(2 * M_PI / valence), 2);
+			double temp_x = (1 - alpha) * mesh.point(i).data()[0];
+			double temp_y = (1 - alpha) * mesh.point(i).data()[1];
+			
+			for (int j = 1; j != valence + 1; ++j)
+			{
+				temp_x += alpha / valence * mesh.point(out_point_list[j]).data()[0];
+				temp_y += alpha / valence * mesh.point(out_point_list[j]).data()[1];
+			}
+			Position p;
+			p.x = mesh.point(i).data()[0];
+			p.y = mesh.point(i).data()[1];
+			subdivision_mesh.point(vertex_map[p]).data()[0] = temp_x;
+			subdivision_mesh.point(vertex_map[p]).data()[1] = temp_y;
+		}
+	}
+	RebuildCreaseList(subdivision_mesh);
+	mesh = subdivision_mesh;
+	Output(subdivision_mesh, "D:/subdivision.off");
+	cout << "Subdivision Complete" << endl;
+}
+
+MyMesh::VertexHandle OpenmeshHelper::InsertVertex(MyMesh &subdivision_mesh, MyMesh::HalfedgeHandle half)
+{
+	auto from = mesh.from_vertex_handle(half);
+	auto to = mesh.to_vertex_handle(half);
+	auto info = OpenMesh::Decimater::CollapseInfoT<MyMesh>::CollapseInfoT(mesh, half);
+	if (info.fl.idx() == -1 || info.fr.idx() == -1)
+	{
+		Position p;
+		p.x = (mesh.point(from).data()[0] + mesh.point(to).data()[0]) / 2;
+		p.y = (mesh.point(from).data()[1] + mesh.point(to).data()[1]) / 2;
+		if (vertex_map[p].idx() == -1)
+		{
+			vertex_map[p] = subdivision_mesh.add_vertex(MyMesh::Point(p.x, p.y, 0)); 
+			MyMesh::Color color;
+			for (int k = 0; k != 3; ++k)
+			{
+				color[k] = (mesh.color(from).data()[k] + mesh.color(to).data()[k]) / 2;
+			}
+			subdivision_mesh.set_color(vertex_map[p], color);
+		}
+		return vertex_map[p];
+	}
+	auto position = find(crease_list.begin(), crease_list.end(), half);
+	if (position != crease_list.end())
+	{
+		Position p;
+		p.x = (mesh.point(from).data()[0] + mesh.point(to).data()[0]) / 2;
+		p.y = (mesh.point(from).data()[1] + mesh.point(to).data()[1]) / 2;
+		if (vertex_map[p].idx() == -1)
+		{
+			vertex_map[p] = subdivision_mesh.add_vertex(MyMesh::Point(p.x, p.y, 0)); 
+			MyMesh::Color color;
+			for (int k = 0; k != 3; ++k)
+			{
+				color[k] = (mesh.color(from).data()[k] + mesh.color(to).data()[k]) / 2;
+			}
+			subdivision_mesh.set_color(vertex_map[p], color);
+		}
+		Position from_position, to_position;
+		from_position.x = mesh.point(from).data()[0];
+		from_position.y = mesh.point(from).data()[1];
+		to_position.x = mesh.point(to).data()[0];
+		to_position.y = mesh.point(to).data()[1];
+		crease_map.insert(make_pair(from_position, p));
+		crease_map.insert(make_pair(p, to_position));
+		return vertex_map[p];
+	}
+
+	MyMesh::VertexHandle left, right;
+	for (auto i = mesh.fv_begin(info.fl); i != mesh.fv_end(info.fl); ++i)
+	{
+		if (i.handle() != from && i.handle() != to)
+		{
+			left = i.handle();
+			break;
+		}
+	}
+	for (auto i = mesh.fv_begin(info.fr); i != mesh.fv_end(info.fr); ++i)
+	{
+		if (i.handle() != from && i.handle() != to)
+		{
+			right = i.handle();
+			break;
+		}
+	}
+	Position p;
+	p.x = mesh.point(from).data()[0] * 0.375 + mesh.point(to).data()[0] * 0.375 +
+		mesh.point(right).data()[0] * 0.125 + mesh.point(left).data()[0] * 0.125;
+	p.y = mesh.point(from).data()[1] * 0.375 + mesh.point(to).data()[1] * 0.375 +
+		mesh.point(right).data()[1] * 0.125 + mesh.point(left).data()[1] * 0.125;
+	if (vertex_map[p].idx() == -1)
+	{
+		vertex_map[p] = subdivision_mesh.add_vertex(MyMesh::Point(p.x, p.y, 0));
+		MyMesh::Color color;
+		for (int k = 0; k != 3; ++k)
+		{
+			color[k] = 0.375 * mesh.color(from).data()[k] + 0.375 * mesh.color(to).data()[k] +
+				0.125 * mesh.color(left).data()[k] + 0.125 * mesh.color(right).data()[k];
+		}
+		subdivision_mesh.set_color(vertex_map[p], color);
+	
+	}
+	return vertex_map[p];
+}
+
+void OpenmeshHelper::RebuildCreaseList(MyMesh mesh)
+{
+	crease_list.clear();
+	for (auto i = mesh.halfedges_begin(); i != mesh.halfedges_end(); ++i)
+	{
+		Position from, to;
+		from.x = mesh.point(mesh.from_vertex_handle(i.handle())).data()[0];
+		from.y = mesh.point(mesh.from_vertex_handle(i.handle())).data()[1];
+		to.x = mesh.point(mesh.to_vertex_handle(i.handle())).data()[0];
+		to.y = mesh.point(mesh.to_vertex_handle(i.handle())).data()[1];
+
+		for (auto k = crease_map.lower_bound(from); k != crease_map.upper_bound(from); ++k)
+		{
+			if (k->second == to)
+			{
+				auto position = find(crease_list.begin(), crease_list.end(), i.handle());
+				if (position == crease_list.end())
+					crease_list.push_back(i.handle());
+				break;
+			}
+		}
+	}
+}
+
+void OpenmeshHelper::OutputImage()
+{
+	for (auto i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
+	{
+		mesh.point(i).data()[0] = mesh.point(i).data()[0] * zoom;
+		mesh.point(i).data()[1] = mesh.point(i).data()[1] * zoom;
+	}
+	IplImage *result = cvCreateImage(cvSize(image->height * zoom, image->width * zoom), image->depth, 3);
+	uchar *data = (uchar *)result->imageData;
+	int step = result->widthStep / sizeof(uchar);
+	for (auto i = mesh.faces_begin(); i != mesh.faces_end(); ++i)
+	{
+		Eigen::Vector3f point[3];
+		int k = 0;
+		double x_min = image->height;
+		double x_max = 0;
+		double y_min = image->width;
+		double y_max = 0;
+		for (auto j = mesh.fv_begin(i); j != mesh.fv_end(i); ++j)
+		{
+			double x = mesh.point(j).data()[0];
+			double y = mesh.point(j).data()[1];
+			point[k++] << x, y, 0;
+			if (x < x_min)
+			{
+				x_min = x;
+			}
+			if (x > x_max)
+			{
+				x_max = x;
+			}
+			if (y < y_min)
+			{
+				y_min = y;
+			}
+			if (y > y_max)
+			{
+				y_max = y;
+			}
+		}
+		int x_end = (int)x_max;
+		int y_end = (int)y_max;
+		int x_begin, y_begin;
+		double d = x_min - (int)x_min;
+		if (d == 0)
+			x_begin = (int)x_min;
+		else
+			x_begin = (int)x_min + 1;
+		d = y_min - (int)y_min;
+		if (d == 0)
+			y_begin = (int)y_min;
+		else
+			y_begin = (int)y_min + 1;
+		for (int x = x_begin; x <= x_end; ++x)
+		{
+			for (int y = y_begin; y <= y_end; ++y)
+			{
+				Eigen::Vector3f P(x, y, 0);
+				auto AP = point[0] - P;
+				auto BP = point[1] - P;
+				auto CP = point[2] - P;
+				double t1, t2, t3;
+				t1 = AP.cross(BP)[2];
+				t2 = BP.cross(CP)[2];
+				t3 = CP.cross(AP)[2];
+				if (t1 * t2 >= 0 && t1 * t3 >= 0)
+				{
+					int r = 0;
+					int g = 0;
+					int b = 0;
+					for (auto tt = mesh.fv_begin(i); tt != mesh.fv_end(i); ++tt)
+					{
+						auto color = mesh.color(tt);
+						b += (int)color.data()[0];
+						g += (int)color.data()[1];
+						r += (int)color.data()[2];
+					}
+					data[x * step + y * 3] = b / 3;
+					data[x * step + y * 3 + 1] = g / 3;
+					data[x * step + y * 3 + 2] = r / 3;
+				}
+			}
+		}
+
+	}
+	
+	cvSaveImage("D:/result.jpg", result);
+}
+
