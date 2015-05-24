@@ -15,10 +15,14 @@ private:
 	{
 		None, Crease, Tear, Corner, Smooth
 	};
+	enum Flag
+	{
+		Middle, Remain, Remove
+	};
 	struct Pair
 	{
 		OpenMesh::HalfedgeHandle edge;
-		int value;
+		double value;
 		friend bool operator==(const Pair &l, const Pair &r)
 		{
 			return l.edge.idx() == r.edge.idx();
@@ -27,7 +31,7 @@ private:
 	
 	struct Position
 	{
-		double x, y;
+		double x, y, z;
 		friend bool operator==(const Position &l, const Position &r)
 		{
 			return l.x == r.x && l.y == r.y;
@@ -54,12 +58,13 @@ private:
 	MyMesh mesh;
 	IplImage *image;
 	MyMesh::VertexHandle **point_data;
-	bool exact = false;
-	double degree = 100;
-	int zoom = 2;
+	double degree = 110;
+	double zoom = 2;
 	double lambda = 0.5;
 	double num_vertices;
 	double num_all_vertices;
+	double max_dis = 0;
+	int reduce_num = 0;
 
 	void InitPointData();
 	void ReSampleColor();
@@ -73,12 +78,17 @@ private:
 	void SubDivision();
 	void LoopReduce(double rate, bool visual);
 	bool IsCollapseOK(MyMesh::HalfedgeHandle half);
-	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info, double *x, double *y);
+	void RegulatePosition(OpenMesh::Decimater::CollapseInfoT<MyMesh> info, double *x, double *y, Flag *flag);
 	void CollapseEdge(MyMesh::HalfedgeHandle half);
 	void OptimizePosition();
 	void RebuildCreaseList(MyMesh);
 	void OutputImage();
+	void getColor(double, double, MyMesh::Color &);
+	double getTriArea(double, double, double, double, double, double);
 	bool IsBoundary(MyMesh::VertexHandle);
+	void getPlane(Position, Position, Position, double&, double&, double&, double&);
+	double getDistance(Position pt, double a, double b, double c, double d);
+	void OutputColor(string);
 public:
 	void Output(MyMesh, string);
 	void ReduceVertices(double rate, bool visual);
@@ -86,4 +96,5 @@ public:
 	OpenmeshHelper(string input_location);
 	~OpenmeshHelper();
 };
+
 #endif // OPENMESH_HELPER_H

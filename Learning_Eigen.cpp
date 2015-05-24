@@ -1,18 +1,22 @@
 #include <iostream>
-#include <Eigen/Dense>
+#include <fstream>
+#include "Eigen/Dense"
+#include <Eigen/SparseCore>
+#include "Eigen/SparseQR"
+#include <Eigen/SparseCholesky>
+#include <Eigen/IterativeLinearSolvers>
+#include <Eigen/Sparse>
 using namespace std;
-using namespace Eigen;
 int main()
 {
-	MatrixXf A1 = MatrixXf::Random(3, 2);
-	std::cout << "Here is the matrix A:\n" << A1 << std::endl;
-	VectorXf b1 = VectorXf::Random(3);
-	std::cout << "Here is the right hand side b:\n" << b1 << std::endl;
-	//jacobiSvd 方式:Slow (but fast for small matrices)
-	std::cout << "The least-squares solution is:\n"
-		<< A1.jacobiSvd(ComputeThinU | ComputeThinV).solve(b1) << std::endl;
-	//colPivHouseholderQr方法:fast
-	std::cout << "The least-squares solution is:\n"
-		<< A1.colPivHouseholderQr().solve(b1) << std::endl;
+	Eigen::SparseMatrix < double > A(2065, 2065);
+
+	for (int i = 0; i != 2065; ++i)
+	{
+		A.insert(i, i) = 1.0;
+	}
+	ofstream out("D:/eigen.txt");
+	out << A << endl;
 	system("pause");
+	return 0;
 }
